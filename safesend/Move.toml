@@ -1,0 +1,12 @@
+[package]
+name = "safesend"
+edition = "2024"
+
+[dependencies]
+# Auto-resolved by the compiler local framework dependencies
+
+[addresses]
+safesend = "0x0"
+
+[environments]
+devnet = "5ea2c653"
