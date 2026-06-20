@@ -364,7 +364,7 @@ function App() {
       const randomnessBigInt = BigInt(randomness);
       const saltBigInt = BigInt(salt);
 
-      const response = await fetch('/sui-prover/v1', {
+      const response = await fetch('/api/sui-prover', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

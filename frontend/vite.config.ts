@@ -8,10 +8,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/sui-prover': {
+        '/api/sui-prover': {
           target: 'https://api.us1.shinami.com/sui/zkprover',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/sui-prover/, ''),
+          rewrite: (path) => path.replace(/^\/api\/sui-prover/, '/v1'),
           headers: {
             'X-Api-Key': env.VITE_SHINAMI_API_KEY || ''
           },
