@@ -927,14 +927,7 @@ function App() {
     <div className="App" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       
       {/* Top Header Navigation */}
-      <header style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        padding: '16px 0', 
-        borderBottom: '1px solid var(--border-navy)', 
-        marginBottom: '24px' 
-      }}>
+      <header className="app-header">
         {/* Logo and Name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => { setViewMode('app'); window.scrollTo(0, 0); }}>
           <LogoSVG size={40} />
@@ -1137,20 +1130,6 @@ function App() {
                   <li style={{ marginBottom: '8px' }}><strong>Background Keeper Bot</strong>: Bots auto-release finalized payments, making execution seamless and gasless for the recipient.</li>
                   <li style={{ marginBottom: '8px' }}><strong>Gas Faucet Helper</strong>: Auto-funds new zkLogin addresses with gas SUI if they have pending escrows, ensuring zero onboarding friction.</li>
                 </ul>
-
-                <h2 className="gitbook-subtitle">On-Chain Deployment Details</h2>
-                <div className="gitbook-callout gitbook-callout-success" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', marginTop: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ShieldCheck size={20} style={{ flexShrink: 0 }} />
-                    <strong>Sui Testnet Contract Live</strong>
-                  </div>
-                  <div style={{ fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                    <div><strong>Active Network:</strong> Sui Testnet</div>
-                    <div><strong>Package ID:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635</code></div>
-                    <div><strong>Treasury Wallet:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79</code></div>
-                    <div><strong>Platform Fee:</strong> 0.1% on successful claims and automatic releases</div>
-                  </div>
-                </div>
               </>
             )}
 
@@ -1332,32 +1311,32 @@ function App() {
               
               {/* Organized status notifications */}
               {errorMessage && (
-                <div className="venmo-card" style={{ borderLeft: '5px solid var(--red-error)', background: 'var(--red-light)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '780px', margin: '0 auto', width: '100%' }}>
+                <div className="venmo-card dashboard-notification" style={{ borderLeft: '5px solid var(--red-error)', background: 'var(--red-light)' }}>
                   <AlertCircle color="var(--red-error)" size={20} style={{ flexShrink: 0 }} />
                   <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{errorMessage}</span>
                 </div>
               )}
 
               {sendSuccess && (
-                <div className="venmo-card" style={{ borderLeft: '5px solid var(--green-success)', background: 'var(--green-light)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '780px', margin: '0 auto', width: '100%' }}>
+                <div className="venmo-card dashboard-notification" style={{ borderLeft: '5px solid var(--green-success)', background: 'var(--green-light)' }}>
                   <CheckCircle color="var(--green-success)" size={20} style={{ flexShrink: 0 }} />
                   <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{sendSuccess}</span>
                 </div>
               )}
 
               {/* Minimalist Dashboard content */}
-              <div className="venmo-card" style={{ maxWidth: '780px', margin: '0 auto', width: '100%', padding: '36px' }}>
+              <div className="venmo-card dashboard-card">
                 
                 {/* Dashboard Header Title */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                  <h1 style={{ fontSize: '2.2rem', color: 'var(--text-dark)', margin: '0 0 10px 0', fontWeight: 800, letterSpacing: '-0.8px' }}>Reversible Crypto Payments</h1>
+                  <h1 className="dashboard-title">Reversible Crypto Payments</h1>
                   <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', margin: 0, maxWidth: '580px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
                     Secure, reversible SUI escrow transfers. Send payments to standard addresses or Google emails with complete reversal safety windows.
                   </p>
                 </div>
 
                 {/* Dashboard Tab navigation */}
-                <div style={{ display: 'flex', borderBottom: '2px solid var(--border-light)', marginBottom: '32px', gap: '28px', justifyContent: 'center' }}>
+                <div className="dashboard-tabs">
                   <button 
                     onClick={() => setActiveTab('send')}
                     style={{
@@ -1495,7 +1474,7 @@ function App() {
                         </div>
                       )}
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                      <div className="dashboard-grid-2-1">
                         <div className="venmo-input-wrapper">
                           <label className="venmo-input-label">Amount</label>
                           <input 
@@ -1622,15 +1601,7 @@ function App() {
                           const isExpired = p.releaseTime < Date.now();
                           const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
                           return (
-                            <div key={p.id} style={{ 
-                              background: 'var(--bg-card-light)', 
-                              border: '1px solid var(--border-light)', 
-                              borderRadius: '16px', 
-                              padding: '16px 20px', 
-                              display: 'flex', 
-                              justifyContent: 'space-between', 
-                              alignItems: 'center' 
-                            }}>
+                            <div key={p.id} className="escrow-card-item">
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--blue-primary)' }}>{p.amount} SUI</span>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>From: <code>{p.sender.substring(0, 8)}...{p.sender.substring(p.sender.length - 6)}</code></span>
@@ -1677,15 +1648,7 @@ function App() {
                           const canCancel = p.releaseTime > Date.now();
                           const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
                           return (
-                            <div key={p.id} style={{ 
-                              background: 'var(--bg-card-light)', 
-                              border: '1px solid var(--border-light)', 
-                              borderRadius: '16px', 
-                              padding: '16px 20px', 
-                              display: 'flex', 
-                              justifyContent: 'space-between', 
-                              alignItems: 'center' 
-                            }}>
+                            <div key={p.id} className="escrow-card-item">
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-dark)' }}>{p.amount} SUI</span>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>To: <code>{p.recipient.substring(0, 8)}...{p.recipient.substring(p.recipient.length - 6)}</code></span>
@@ -1734,16 +1697,7 @@ function App() {
                       historyPayments.map(p => {
                         const isSender = p.sender.toLowerCase() === activeAddress.toLowerCase();
                         return (
-                          <div key={p.id} style={{ 
-                            background: 'var(--bg-card-white)', 
-                            border: '1px solid var(--border-light)', 
-                            borderLeft: isSender ? '5px solid var(--blue-primary)' : '5px solid var(--green-success)',
-                            borderRadius: '16px', 
-                            padding: '16px 20px', 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center' 
-                          }}>
+                          <div key={p.id} className={`escrow-card-item white-bg ${isSender ? 'sender-border' : 'recipient-border'}`}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                               <span style={{ fontWeight: 800, color: 'var(--text-dark)', fontSize: '1.05rem' }}>
                                 {isSender ? "-" : "+"}{p.amount} SUI
@@ -1794,7 +1748,7 @@ function App() {
       {/* Unified Login Modal */}
       {showEmailModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(4, 8, 21, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="venmo-card" style={{ maxWidth: '460px', width: '90%', padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--border-light)', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="venmo-card login-modal-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dark)', fontWeight: 800 }}>
                 <Wallet size={22} color="var(--blue-primary)" />

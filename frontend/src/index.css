@@ -732,3 +732,330 @@ body {
 .dark-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Responsive Layout Classes & Media Queries */
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-navy);
+  margin-bottom: 24px;
+  gap: 15px;
+}
+
+.dashboard-card {
+  max-width: 780px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 36px;
+  box-sizing: border-box;
+}
+
+.dashboard-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border-light);
+  margin-bottom: 32px;
+  gap: 28px;
+  justify-content: center;
+}
+
+.dashboard-notification {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 780px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Tablets (landscape and portrait) & Mobile screens */
+@media (max-width: 1024px) {
+  .landing-title {
+    font-size: 2.8rem;
+  }
+  
+  .landing-feature-headline {
+    font-size: 2.2rem;
+  }
+
+  .landing-feature-row {
+    gap: 40px;
+  }
+}
+
+@media (max-width: 768px) {
+  #root {
+    padding: 10px 16px;
+  }
+
+  .app-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 20px;
+  }
+
+  /* Landing Page Elements */
+  .landing-hero {
+    padding: 40px 0 30px;
+  }
+
+  .landing-title {
+    font-size: 2.2rem;
+    letter-spacing: -1px;
+  }
+
+  .landing-subtitle {
+    font-size: 1.05rem;
+  }
+
+  .landing-feature-section {
+    gap: 60px;
+    padding: 30px 0;
+  }
+
+  .landing-feature-row,
+  .landing-feature-row.reverse {
+    flex-direction: column;
+    text-align: center;
+    gap: 30px;
+  }
+
+  .landing-feature-text {
+    align-items: center;
+    text-align: center;
+  }
+
+  .landing-feature-headline {
+    font-size: 1.8rem;
+    letter-spacing: -0.5px;
+    text-align: center;
+  }
+
+  .landing-feature-description {
+    font-size: 0.98rem;
+    text-align: center;
+  }
+
+  .landing-feature-image-container {
+    width: 100%;
+  }
+
+  .landing-feature-image-wrapper {
+    border-radius: 20px;
+    padding: 8px;
+  }
+
+  .landing-feature-image {
+    max-height: 260px !important;
+  }
+
+  /* Dashboard Adjustments */
+  .dashboard-card {
+    padding: 24px 16px;
+  }
+
+  .dashboard-tabs {
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .dashboard-tabs button {
+    font-size: 0.9rem !important;
+    padding-bottom: 8px !important;
+  }
+
+  /* GitBook panel responsive layouts */
+  .gitbook-container {
+    flex-direction: column;
+    height: auto;
+    max-height: none;
+    border-radius: 16px;
+  }
+
+  .gitbook-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-light);
+    padding: 20px 16px;
+  }
+
+  .gitbook-sidebar-section {
+    gap: 6px;
+  }
+
+  .gitbook-content {
+    padding: 24px 16px;
+    height: auto;
+    overflow-y: visible;
+  }
+
+  .gitbook-title {
+    font-size: 1.8rem;
+    padding-bottom: 12px;
+  }
+
+  .gitbook-subtitle {
+    font-size: 1.2rem;
+  }
+
+  .gitbook-paragraph {
+    font-size: 0.95rem;
+  }
+
+  .gitbook-code {
+    font-size: 0.8rem;
+  }
+
+  /* Footer Adjustments */
+  .landing-footer {
+    margin-top: 60px;
+    padding: 40px 0 20px;
+  }
+
+  .footer-top {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 30px;
+    margin-bottom: 30px;
+  }
+
+  .footer-brand {
+    align-items: center;
+    text-align: center;
+    max-width: 100%;
+  }
+
+  .footer-links-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .footer-col {
+    align-items: center;
+    text-align: center;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer-links-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .pulse-node {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .landing-feature-image {
+    max-height: 200px !important;
+  }
+}
+
+/* Responsive Enhancements for Dashboard & Modals */
+
+.dashboard-title {
+  font-size: 2.5rem;
+  color: var(--text-dark);
+  letter-spacing: -1px;
+  margin: 0 0 8px 0;
+  width: 100%;
+  display: block;
+  font-weight: 800;
+  text-align: center;
+}
+
+.dashboard-grid-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.escrow-card-item {
+  background: var(--bg-card-light);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  box-sizing: border-box;
+}
+
+.escrow-card-item.white-bg {
+  background: var(--bg-card-white);
+}
+
+.escrow-card-item.sender-border {
+  border-left: 5px solid var(--blue-primary);
+}
+
+.escrow-card-item.recipient-border {
+  border-left: 5px solid var(--green-success);
+}
+
+.login-modal-card {
+  max-width: 460px;
+  width: 90%;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  border: 1px solid var(--border-light);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .dashboard-title {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 580px) {
+  .escrow-card-item {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    gap: 16px;
+  }
+  
+  .escrow-card-item button,
+  .escrow-card-item .btn-venmo-primary,
+  .escrow-card-item .btn-venmo-danger {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-grid-2-1 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .login-modal-card {
+    padding: 24px 16px;
+    gap: 16px;
+  }
+}
+
