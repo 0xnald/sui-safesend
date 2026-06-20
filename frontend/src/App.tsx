@@ -893,6 +893,7 @@ function App() {
             <a className="footer-link" href="https://github.com/0xnald/sui-safesend/tree/main/safesend" target="_blank" rel="noopener noreferrer">Smart Contract</a>
             <a className="footer-link" href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer">Keeper Bot</a>
             <a className="footer-link" href="https://testnet.suivision.xyz" target="_blank" rel="noopener noreferrer">Explorer</a>
+            <a className="footer-link" href="https://faucet.sui.io/" target="_blank" rel="noopener noreferrer">Sui Faucet</a>
           </div>
           <div className="footer-col">
             <span className="footer-col-title">Developers</span>
@@ -1033,6 +1034,18 @@ function App() {
                           {copied ? <Check size={12} color="var(--green-success)" /> : <Copy size={12} color="var(--text-light)" />}
                         </button>
                       </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Need SUI Gas?</span>
+                      <a 
+                        href="https://faucet.sui.io/" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ fontSize: '0.82rem', color: 'var(--blue-sky)', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        Claim Sui Faucet ↗
+                      </a>
                     </div>
 
                     <button 
