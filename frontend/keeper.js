@@ -4,7 +4,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import fs from 'fs';
 import http from 'http';
 
-const PACKAGE_ID = "0xa6884491ed641fc9eb95c6a066cfc7ef7aa817fc6e17dff51de5b3ce7da6362f";
+const PACKAGE_ID = "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
 const MODULE_NAME = "safesend";
 
 // 1. Initialize Sui Client pointing to Testnet

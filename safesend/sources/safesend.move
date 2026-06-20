@@ -14,6 +14,9 @@ module safesend::safesend {
     const EAlreadyReleaseTime: u64 = 3;
     const ENotExpiredYet: u64 = 4;
 
+    /// Platform Treasury Address (receives 0.1% transaction fee on settlement)
+    const TREASURY: address = @0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79;
+
     /// The SafePayment object representing the escrowed transaction.
     public struct SafePayment<phantom T> has key, store {
         id: UID,
@@ -104,12 +107,19 @@ module safesend::safesend {
         payment.claimed = true;
         
         // Extract the balance and transfer to the caller
-        let coins = option::extract(&mut payment.balance);
+        let mut coins = option::extract(&mut payment.balance);
         let amount = coin::value(&coins);
         let recipient_address = tx_context::sender(ctx);
 
         // Update the recipient field to the actual claimant
         payment.recipient = recipient_address;
+
+        // Deduct 0.1% platform fee (1/1000)
+        let fee_amount = amount / 1000;
+        if (fee_amount > 0) {
+            let fee_coin = coin::split(&mut coins, fee_amount, ctx);
+            transfer::public_transfer(fee_coin, TREASURY);
+        };
 
         transfer::public_transfer(coins, recipient_address);
 
@@ -126,7 +136,7 @@ module safesend::safesend {
     public fun release_payment<T>(
         payment: &mut SafePayment<T>,
         clock: &Clock,
-        _ctx: &mut TxContext
+        ctx: &mut TxContext
     ) {
         assert!(!payment.claimed, EPaymentClaimed);
         
@@ -135,9 +145,16 @@ module safesend::safesend {
 
         payment.claimed = true;
 
-        let coins = option::extract(&mut payment.balance);
+        let mut coins = option::extract(&mut payment.balance);
         let amount = coin::value(&coins);
         let recipient = payment.recipient;
+
+        // Deduct 0.1% platform fee (1/1000)
+        let fee_amount = amount / 1000;
+        if (fee_amount > 0) {
+            let fee_coin = coin::split(&mut coins, fee_amount, ctx);
+            transfer::public_transfer(fee_coin, TREASURY);
+        };
 
         transfer::public_transfer(coins, recipient);
 

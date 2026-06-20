@@ -31,7 +31,7 @@ import {
 import './App.css';
 
 // Deployed Package Configuration on Sui Testnet
-const PACKAGE_ID = "0xa6884491ed641fc9eb95c6a066cfc7ef7aa817fc6e17dff51de5b3ce7da6362f";
+const PACKAGE_ID = "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
 const MODULE_NAME = "safesend";
 
 interface PaymentItem {
@@ -1492,6 +1492,15 @@ function App() {
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                           />
+                          {amount && parseFloat(amount) > 0 && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'left' }}>
+                              <span>Recipient receives: </span>
+                              <strong style={{ color: 'var(--green-success)' }}>
+                                {(parseFloat(amount) * 0.999).toFixed(4)} SUI
+                              </strong>
+                              <span> (0.1% platform fee: {(parseFloat(amount) * 0.001).toFixed(4)} SUI)</span>
+                            </div>
+                          )}
                         </div>
                         <div className="venmo-input-wrapper">
                           <label className="venmo-input-label">Asset</label>
