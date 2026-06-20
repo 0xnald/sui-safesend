@@ -25,7 +25,8 @@ import {
   Copy,
   Check,
   ChevronDown,
-  Wallet
+  Wallet,
+  BookOpen
 } from 'lucide-react';
 import './App.css';
 
@@ -63,7 +64,119 @@ function bigIntToBase64(n: bigint): string {
   return toBase64(fromHex(hex));
 }
 
+const MOVE_STRUCT_CODE = `public struct SafePayment<phantom T> has key, store {
+    id: UID,
+    sender: address,
+    recipient: address, // derived zkLogin address or standard wallet address
+    recipient_email: String, // email address if sent to email, otherwise empty
+    balance: Option<Coin<T>>,
+    release_time: u64, // timestamp in ms when payment becomes non-reversible
+    claimed: bool,
+}`;
+
+const ZKLOGIN_SALT_CODE = `// Derive a secure deterministic 128-bit BigInt salt from email
+async function getDeterministicSalt(email: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(email.toLowerCase().trim() + "_safesend_salt_secret_key_2026");
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  const hashArray = new Uint8Array(hashBuffer);
+  let val = 0n;
+  for (let i = 0; i < 16; i++) {
+    val = (val << 8n) + BigInt(hashArray[i]);
+  }
+  return val.toString();
+}`;
+
+const KEEPER_AUTOCLAIM_CODE = `// Keeper loop to check and auto-settle expired escrows on-chain
+async function checkAndSettlePayments() {
+  const createdEvents = await suiClient.queryEvents({
+    query: { MoveEventType: \\\`\\\${PACKAGE_ID}::safesend::PaymentCreated\\\` },
+    limit: 50,
+  });
+  
+  for (const event of createdEvents.data) {
+    const fields = event.parsedJson;
+    if (!fields.claimed && Date.now() >= Number(fields.release_time)) {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: \\\`\\\${PACKAGE_ID}::safesend::release_payment\\\`,
+        typeArguments: ['0x2::sui::SUI'],
+        arguments: [tx.object(fields.payment_id), tx.object(\"0x6\")]
+      });
+      await suiClient.signAndExecuteTransaction({ transaction: tx, signer: keeperKeypair });
+    }
+  }
+}`;
+
+const INTEGRATION_CODE = `import { Transaction } from '@mysten/sui/transactions';
+
+const tx = new Transaction();
+const amountInMist = BigInt(amount * 1e9);
+const [coinToDeposit] = tx.splitCoins(tx.gas, [amountInMist]);
+
+tx.moveCall({
+  target: \\\`\\\${PACKAGE_ID}::safesend::create_payment\\\`,
+  typeArguments: ['0x2::sui::SUI'],
+  arguments: [
+    tx.pure.address(recipientAddress),
+    tx.pure.string(recipientEmail),
+    coinToDeposit,
+    tx.pure.u64(lockDurationMs),
+    tx.object(\"0x6\"), // clock
+  ],
+});`;
+
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "555776269604-demo-client-id.apps.googleusercontent.com";
+
+const LogoSVG = ({ size = 36 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+    <defs>
+      <linearGradient id="dropletGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0070F3" />
+        <stop offset="50%" stopColor="#38BDF8" />
+        <stop offset="100%" stopColor="#00C2FF" />
+      </linearGradient>
+    </defs>
+    
+    <path 
+      d="M50 8 C68 35, 82 55, 82 70 A 32 32 0 0 1 18 70 C18 55, 32 35, 50 8 Z" 
+      stroke="url(#dropletGradient)" 
+      strokeWidth="6" 
+      fill="none" 
+    />
+    
+    <path 
+      d="M58 38 C58 32, 42 32, 42 42 C42 47, 50 48, 50 48" 
+      stroke="#FFFFFF" 
+      strokeWidth="7" 
+      strokeLinecap="round" 
+      fill="none" 
+    />
+    
+    <path 
+      d="M50 48 C50 48, 58 49, 58 54 C58 64, 42 64, 42 58" 
+      stroke="#0070F3" 
+      strokeWidth="7" 
+      strokeLinecap="round" 
+      fill="none" 
+    />
+    
+    <path 
+      d="M28 72 C35 69, 41 75, 50 72 C59 69, 65 75, 72 72" 
+      stroke="#38BDF8" 
+      strokeWidth="4" 
+      strokeLinecap="round" 
+      fill="none" 
+    />
+    <path 
+      d="M24 78 C32 75, 40 81, 50 78 C60 75, 68 81, 76 78" 
+      stroke="#0070F3" 
+      strokeWidth="4" 
+      strokeLinecap="round" 
+      fill="none" 
+    />
+  </svg>
+);
 
 // Derive a secure deterministic 128-bit BigInt salt from email for zkLogin address mapping
 async function getDeterministicSalt(email: string): Promise<string> {
@@ -148,6 +261,20 @@ function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<'send' | 'manage' | 'history'>('send');
+
+  // Layout views (App Dashboard vs GitBook Developer Docs)
+  const [viewMode, setViewMode] = useState<'app' | 'docs'>('app');
+  const [activeDocId, setActiveDocId] = useState<string>('intro');
+  const [paymentNote, setPaymentNote] = useState<string>('');
+  const [docCopied, setDocCopied] = useState<{[key: string]: boolean}>({});
+
+  const handleCopyDocCode = (codeKey: string, codeText: string) => {
+    navigator.clipboard.writeText(codeText);
+    setDocCopied(prev => ({ ...prev, [codeKey]: true }));
+    setTimeout(() => {
+      setDocCopied(prev => ({ ...prev, [codeKey]: false }));
+    }, 2000);
+  };
 
   // Send Form State
   const [sendMode, setSendMode] = useState<'wallet' | 'email'>('wallet');
@@ -728,580 +855,945 @@ function App() {
     }
   };
 
-  return (
-    <div className="App" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-      {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: '1px solid var(--border)', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <ShieldCheck size={36} color="var(--accent)" />
-          <h2 style={{ fontSize: '1.5rem', margin: 0, background: 'linear-gradient(to right, #fff, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Sui SafeSend</h2>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {!activeAddress ? (
-            <button 
-              className="btn-primary" 
-              onClick={() => setShowEmailModal(true)}
-              style={{ padding: '10px 20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
-            >
-              <Wallet size={16} />
-              Login / Connect Wallet
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
-              {/* Balance display */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(168, 85, 247, 0.06)', padding: '8px 14px', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.15)', fontSize: '0.9rem', color: 'var(--text-h)', fontWeight: 600 }}>
-                <Coins size={16} color="var(--accent)" />
-                <span>{activeBalance} SUI</span>
+  const renderFooter = () => (
+    <footer className="landing-footer">
+      <div className="footer-top">
+        <div className="footer-brand">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <LogoSVG size={36} />
+            <h3 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-white)', fontWeight: 800, letterSpacing: '-0.3px' }}>Sui SafeSend</h3>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', margin: '10px 0 15px', textAlign: 'left', lineHeight: 1.4 }}>
+            Secure, reversible peer-to-peer crypto payments powered by zkLogin.
+          </p>
+          <div 
+            className="footer-btn-docs" 
+            onClick={() => { setViewMode('docs'); setActiveDocId('intro'); window.scrollTo(0, 0); }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <BookOpen size={20} color="var(--blue-sky)" />
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ display: 'block', fontWeight: 700, fontSize: '0.92rem' }}>Docs</span>
+                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-light)' }}>Explore developer guides</span>
               </div>
-
-              {/* User Dropdown Trigger */}
-              <button 
-                onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="btn-secondary"
-                style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}
-              >
-                {connectedEmail ? <Mail size={14} color="var(--accent)" /> : <Wallet size={14} color="var(--accent)" />}
-                <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {connectedEmail ? connectedEmail : `${activeAddress.substring(0, 6)}...${activeAddress.substring(activeAddress.length - 4)}`}
-                </span>
-                <ChevronDown size={14} style={{ transform: showUserDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-              </button>
-
-              {/* Dropdown Content */}
-              {showUserDropdown && (
-                <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '300px', zIndex: 100, padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', border: '1px solid var(--border-glow)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontWeight: 600 }}>
-                      {connectedEmail ? "GOOGLE zkLOGIN SESSION" : "CONNECTED BROWSER WALLET"}
-                    </span>
-                    {connectedEmail && (
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-h)', wordBreak: 'break-all', fontWeight: 500 }}>
-                        {connectedEmail}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontWeight: 600 }}>SUI WALLET ADDRESS:</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                      <code style={{ fontSize: '0.75rem', color: 'var(--text-h)', wordBreak: 'break-all', flex: 1 }}>
-                        {activeAddress}
-                      </code>
-                      <button 
-                        onClick={handleCopyAddress} 
-                        title="Copy Address"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} color="var(--text)" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>Balance:</span>
-                    <span style={{ fontSize: '1rem', color: 'var(--text-h)', fontWeight: 700 }}>{activeBalance} SUI</span>
-                  </div>
-
-
-
-                  <button 
-                    onClick={handleDisconnect} 
-                    className="btn-secondary" 
-                    style={{ width: '100%', padding: '10px', borderColor: '#ef4444', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}
-                  >
-                    <LogOut size={14} />
-                    Disconnect Session
-                  </button>
-                </div>
-              )}
             </div>
-          )}
+            <span style={{ fontSize: '1.1rem', color: 'var(--text-light)' }}>↗</span>
+          </div>
         </div>
-      </header>
 
-      {/* Hero Banner */}
-      <section style={{ padding: '50px 0 30px', textAlign: 'center' }}>
-        <h1 style={{ marginBottom: '16px', fontSize: '2.5rem', background: 'linear-gradient(to right, #fff, #d8b4fe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Reversible Crypto Payments</h1>
-        <p style={{ fontSize: '1.15rem', color: 'var(--text)', maxWidth: '650px', margin: '0 auto 25px', lineHeight: 1.5 }}>
-          Eliminate address anxiety. Send SUI securely to any wallet address or email. Recall mistakes instantly before final settlement, or let our keeper auto-deliver upon expiry.
-        </p>
-
-        {/* Tab Switcher */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', margin: '20px 0' }}>
-          <button 
-            className={`btn-secondary ${activeTab === 'send' ? 'active-tab' : ''}`}
-            onClick={() => setActiveTab('send')}
-            style={{ 
-              borderColor: activeTab === 'send' ? 'var(--accent)' : 'var(--border)',
-              background: activeTab === 'send' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255,255,255,0.02)' 
-            }}
-          >
-            <Send size={16} />
-            Send Escrow
-          </button>
-          <button 
-            className={`btn-secondary ${activeTab === 'manage' ? 'active-tab' : ''}`}
-            onClick={() => setActiveTab('manage')}
-            style={{ 
-              borderColor: activeTab === 'manage' ? 'var(--accent)' : 'var(--border)',
-              background: activeTab === 'manage' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255,255,255,0.02)' 
-            }}
-          >
-            <Clock size={16} />
-            Active Escrows ({sentPayments.length + receivedPayments.length})
-          </button>
-          <button 
-            className={`btn-secondary ${activeTab === 'history' ? 'active-tab' : ''}`}
-            onClick={() => setActiveTab('history')}
-            style={{ 
-              borderColor: activeTab === 'history' ? 'var(--accent)' : 'var(--border)',
-              background: activeTab === 'history' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255,255,255,0.02)' 
-            }}
-          >
-            <History size={16} />
-            History ({historyPayments.length})
-          </button>
+        <div className="footer-links-grid">
+          <div className="footer-col">
+            <span className="footer-col-title">Products</span>
+            <a className="footer-link" onClick={() => { setViewMode('app'); window.scrollTo(0, 0); }}>SafeSend App</a>
+            <a className="footer-link" onClick={() => setShowEmailModal(true)}>zkLogin Wallet</a>
+            <a className="footer-link" onClick={() => setShowEmailModal(true)}>Escrow Vault</a>
+          </div>
+          <div className="footer-col">
+            <span className="footer-col-title">Protocol</span>
+            <a className="footer-link" href="https://github.com/0xnald/sui-safesend/tree/main/safesend" target="_blank" rel="noopener noreferrer">Smart Contract</a>
+            <a className="footer-link" href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer">Keeper Bot</a>
+            <a className="footer-link" href="https://testnet.suivision.xyz" target="_blank" rel="noopener noreferrer">Explorer</a>
+          </div>
+          <div className="footer-col">
+            <span className="footer-col-title">Developers</span>
+            <a className="footer-link" onClick={() => { setViewMode('docs'); setActiveDocId('intro'); window.scrollTo(0, 0); }}>API Reference</a>
+            <a className="footer-link" onClick={() => { setViewMode('docs'); setActiveDocId('contract'); window.scrollTo(0, 0); }}>Move Source</a>
+            <a className="footer-link" href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
+          </div>
+          <div className="footer-col">
+            <span className="footer-col-title">Socials</span>
+            <a className="footer-link" href="https://x.com" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+            <a className="footer-link" href="https://discord.com" target="_blank" rel="noopener noreferrer">Discord</a>
+            <a className="footer-link" href="https://telegram.org" target="_blank" rel="noopener noreferrer">Telegram</a>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Main Content Area */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '30px', paddingBottom: '60px' }}>
-        {errorMessage && (
-          <div className="glass-card" style={{ borderLeft: '4px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)', padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-            <AlertCircle color="#ef4444" size={20} />
-            <span style={{ color: 'var(--text-h)' }}>{errorMessage}</span>
+      <div className="footer-bottom">
+        <div className="footer-socials">
+          <a href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><Coins size={18} /></a>
+          <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><Sparkles size={18} /></a>
+          <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><ShieldCheck size={18} /></a>
+        </div>
+        <div>
+          <span>© 2026 Sui SafeSend Labs. Built for Sui Overflow.</span>
+        </div>
+      </div>
+    </footer>
+  );
+
+  return (
+    <div className="App" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      
+      {/* Top Header Navigation */}
+      <header style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '16px 0', 
+        borderBottom: '1px solid var(--border-navy)', 
+        marginBottom: '24px' 
+      }}>
+        {/* Logo and Name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => { setViewMode('app'); window.scrollTo(0, 0); }}>
+          <LogoSVG size={40} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-white)', fontWeight: 800, letterSpacing: '-0.5px' }}>Sui SafeSend</h2>
+            <span style={{ fontSize: '0.72rem', color: 'var(--blue-sky)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginTop: '-2px' }}>Escrow Protocol</span>
           </div>
-        )}
+        </div>
 
-        {sendSuccess && (
-          <div className="glass-card" style={{ borderLeft: '4px solid #10b981', background: 'rgba(16, 185, 129, 0.05)', padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-            <CheckCircle color="#10b981" size={20} />
-            <span style={{ color: 'var(--text-h)' }}>{sendSuccess}</span>
-          </div>
-        )}
-
-        {!activeAddress && (
-          <div className="glass-card" style={{ maxWidth: '480px', margin: '40px auto', padding: '40px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <Lock size={48} color="var(--accent)" style={{ margin: '0 auto 10px' }} />
-            <h3 style={{ fontSize: '1.25rem', color: 'var(--text-h)' }}>Access SafeSend Platform</h3>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.5 }}>
-              Log in to the platform to start sending and recalling payments securely.
-            </p>
-            <button 
-              onClick={() => setShowEmailModal(true)} 
-              className="btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px', padding: '14px', borderRadius: '12px' }}
-            >
-              <Wallet size={18} />
-              Log in / Connect Session
-            </button>
-          </div>
-        )}
-
-        {activeAddress && (
-          <>
-            {/* Tab 1: Send Payment */}
-            {activeTab === 'send' && (
-              <div className="glass-card" style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-                <h3 style={{ fontSize: '1.3rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                  <Send size={18} color="var(--accent)" />
-                  Initiate Reversible Transfer
-                </h3>
-
-                {/* Send Mode Selection */}
-                <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                    <input 
-                      type="radio" 
-                      name="sendMode" 
-                      checked={sendMode === 'wallet'} 
-                      onChange={() => setSendMode('wallet')}
-                      style={{ accentColor: 'var(--accent)' }}
-                    />
-                    Send to Sui Wallet Address
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                    <input 
-                      type="radio" 
-                      name="sendMode" 
-                      checked={sendMode === 'email'} 
-                      onChange={() => setSendMode('email')}
-                      style={{ accentColor: 'var(--accent)' }}
-                    />
-                    Send to Email Address (zkLogin)
-                  </label>
+        {/* Header Right Content (varies based on login and view mode) */}
+        {viewMode === 'docs' ? (
+          <button 
+            className="btn-venmo-secondary" 
+            onClick={() => setViewMode('app')}
+            style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+          >
+            ← Back to App
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {!activeAddress ? (
+              <button 
+                className="btn-venmo-primary" 
+                onClick={() => setShowEmailModal(true)}
+                style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+              >
+                <Wallet size={16} />
+                Login / Connect
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
+                {/* Balance */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  background: 'rgba(0, 112, 243, 0.08)', 
+                  padding: '8px 14px', 
+                  borderRadius: '9999px', 
+                  border: '1px solid rgba(0, 112, 243, 0.2)', 
+                  fontSize: '0.88rem', 
+                  color: 'var(--text-white)', 
+                  fontWeight: 700 
+                }}>
+                  <Coins size={14} color="var(--blue-sky)" />
+                  <span>{activeBalance} SUI</span>
                 </div>
-                
-                <form onSubmit={handleSendPayment} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {sendMode === 'wallet' ? (
-                    <div>
-                      <label style={{ display: 'block', textAlign: 'left', marginBottom: '8px', fontWeight: 600, fontSize: '0.85rem' }}>Recipient Sui Wallet Address</label>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="0x80445..." 
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label style={{ display: 'block', textAlign: 'left', marginBottom: '8px', fontWeight: 600, fontSize: '0.85rem' }}>Recipient Email Address</label>
-                      <input 
-                        type="email" 
-                        className="input-field" 
-                        placeholder="recipient@example.com" 
-                        value={recipientEmail}
-                        onChange={(e) => setRecipientEmail(e.target.value)}
-                      />
-                      <span style={{ display: 'block', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '6px' }}>
-                        * We will securely derive a zkLogin address. The recipient can claim the funds simply by logging into this email via Google. Note: Email escrows must be claimed manually by the recipient.
+
+                {/* User Dropdown Trigger */}
+                <button 
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="btn-venmo-secondary"
+                  style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+                >
+                  {connectedEmail ? <Mail size={14} /> : <Wallet size={14} />}
+                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {connectedEmail ? connectedEmail : `${activeAddress.substring(0, 6)}...${activeAddress.substring(activeAddress.length - 4)}`}
+                  </span>
+                  <ChevronDown size={14} style={{ transform: showUserDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                </button>
+
+                {/* User Dropdown Menu */}
+                {showUserDropdown && (
+                  <div className="navy-card" style={{ 
+                    position: 'absolute', 
+                    top: 'calc(100% + 8px)', 
+                    right: 0, 
+                    width: '290px', 
+                    zIndex: 100, 
+                    padding: '20px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '15px' 
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                        {connectedEmail ? "GOOGLE zkLOGIN SESSION" : "CONNECTED WALLET"}
                       </span>
+                      {connectedEmail && (
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-white)', wordBreak: 'break-all', fontWeight: 600 }}>
+                          {connectedEmail}
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                    <div>
-                      <label style={{ display: 'block', textAlign: 'left', marginBottom: '8px', fontWeight: 600, fontSize: '0.85rem' }}>Amount</label>
-                      <input 
-                        type="number" 
-                        step="any"
-                        className="input-field" 
-                        placeholder="0.0" 
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                      />
+                    <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Wallet Address:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.25)', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-navy)' }}>
+                        <code style={{ fontSize: '0.72rem', color: 'var(--text-white)', wordBreak: 'break-all', flex: 1 }}>
+                          {activeAddress}
+                        </code>
+                        <button 
+                          onClick={handleCopyAddress} 
+                          title="Copy Address"
+                          style={{ background: 'rgba(255,255,255,0.05)', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          {copied ? <Check size={12} color="var(--green-success)" /> : <Copy size={12} color="var(--text-light)" />}
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', textAlign: 'left', marginBottom: '8px', fontWeight: 600, fontSize: '0.85rem' }}>Asset</label>
-                      <select 
-                        className="input-field" 
-                        value={coinType} 
-                        onChange={(e) => setCoinType(e.target.value)}
-                        style={{ appearance: 'none', background: 'rgba(0,0,0,0.2)' }}
-                      >
-                        <option value="SUI">SUI</option>
-                      </select>
-                    </div>
-                  </div>
 
-                  <div>
-                    <label style={{ display: 'block', textAlign: 'left', marginBottom: '8px', fontWeight: 600, fontSize: '0.85rem' }}>Safety Window (Reversal Duration)</label>
-                    <select 
-                      className="input-field" 
-                      value={lockDuration} 
-                      onChange={(e) => setLockDuration(e.target.value)}
-                      style={{ appearance: 'none' }}
+                    <button 
+                      onClick={handleDisconnect} 
+                      className="btn-venmo-danger" 
+                      style={{ width: '100%', padding: '10px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                     >
-                      <option value="60">1 Minute (Testing / Demo)</option>
-                      <option value="3600">1 Hour (Standard)</option>
-                      <option value="43200">12 Hours (Safe)</option>
-                      <option value="86400">24 Hours (Extreme Protection)</option>
-                    </select>
-                  </div>
-
-                  <button type="submit" className="btn-primary" disabled={isSending}>
-                    {isSending ? "Creating Escrow Contract..." : "Send Reversible Payment"}
-                  </button>
-                </form>
-
-                {/* Live Flow Visualizer */}
-                {animatingStep > 0 && (
-                  <div style={{ marginTop: '40px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-                    <h4 style={{ fontSize: '0.9rem', color: 'var(--text-h)', marginBottom: '15px' }}>On-Chain Transaction Flow</h4>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px' }}>
-                      {/* Payer Node */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        <div className={`pulse-node`} style={{ width: '45px', height: '45px', borderRadius: '50%', background: animatingStep >= 1 ? 'var(--accent)' : '#1f2028', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Coins size={18} color={animatingStep >= 1 ? '#fff' : 'var(--text)'} />
-                        </div>
-                        <span style={{ fontSize: '0.7rem' }}>Sender</span>
-                      </div>
-
-                      {/* Flow Arrow 1 */}
-                      <div style={{ flex: 1, padding: '0 10px', height: '10px' }}>
-                        <svg width="100%" height="8" viewBox="0 0 100 8" fill="none" preserveAspectRatio="none">
-                          <path d="M0,4 H100" stroke={animatingStep >= 1 ? 'var(--accent)' : 'var(--border)'} strokeWidth="2" className={animatingStep >= 1 ? 'flowing-line' : ''} />
-                        </svg>
-                      </div>
-
-                      {/* SafeSend Vault */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        <div className={animatingStep >= 2 ? 'pulse-node' : ''} style={{ width: '45px', height: '45px', borderRadius: '50%', background: animatingStep >= 2 ? 'var(--accent)' : '#1f2028', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Lock size={18} color={animatingStep >= 2 ? '#fff' : 'var(--text)'} />
-                        </div>
-                        <span style={{ fontSize: '0.7rem' }}>Escrow Vault</span>
-                      </div>
-
-                      {/* Flow Arrow 2 */}
-                      <div style={{ flex: 1, padding: '0 10px', height: '10px' }}>
-                        <svg width="100%" height="8" viewBox="0 0 100 8" fill="none" preserveAspectRatio="none">
-                          <path d="M0,4 H100" stroke={animatingStep >= 3 ? 'var(--accent)' : 'var(--border)'} strokeWidth="2" className={animatingStep >= 3 ? 'flowing-line' : ''} />
-                        </svg>
-                      </div>
-
-                      {/* Recipient Node */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '45px', height: '45px', borderRadius: '50%', background: animatingStep >= 3 ? 'var(--accent)' : '#1f2028', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Unlock size={18} color={animatingStep >= 3 ? '#fff' : 'var(--text)'} />
-                        </div>
-                        <span style={{ fontSize: '0.7rem' }}>Recipient</span>
-                      </div>
-                    </div>
+                      <LogOut size={12} />
+                      Disconnect Session
+                    </button>
                   </div>
                 )}
               </div>
             )}
+          </div>
+        )}
+      </header>
 
-            {/* Tab 2: Manage Active Escrows */}
-            {activeTab === 'manage' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+      {/* Main Content switcher */}
+      {viewMode === 'docs' ? (
+        /* GitBook Developer Documentation Panel */
+        <div className="gitbook-container">
+          <div className="gitbook-sidebar">
+            <div className="gitbook-sidebar-section">
+              <span className="gitbook-sidebar-title">GETTING STARTED</span>
+              <div 
+                className={`gitbook-nav-item ${activeDocId === 'intro' ? 'active' : ''}`}
+                onClick={() => setActiveDocId('intro')}
+              >
+                <BookOpen size={16} />
+                Introduction
+              </div>
+            </div>
+            
+            <div className="gitbook-sidebar-section">
+              <span className="gitbook-sidebar-title">TECHNICAL PROTOCOL</span>
+              <div 
+                className={`gitbook-nav-item ${activeDocId === 'contract' ? 'active' : ''}`}
+                onClick={() => setActiveDocId('contract')}
+              >
+                <Lock size={16} />
+                Move Smart Contract
+              </div>
+              <div 
+                className={`gitbook-nav-item ${activeDocId === 'zklogin' ? 'active' : ''}`}
+                onClick={() => setActiveDocId('zklogin')}
+              >
+                <ShieldCheck size={16} />
+                zkLogin Cryptography
+              </div>
+              <div 
+                className={`gitbook-nav-item ${activeDocId === 'keeper' ? 'active' : ''}`}
+                onClick={() => setActiveDocId('keeper')}
+              >
+                <Clock size={16} />
+                Keeper Automation
+              </div>
+            </div>
+
+            <div className="gitbook-sidebar-section">
+              <span className="gitbook-sidebar-title">API REFERENCE</span>
+              <div 
+                className={`gitbook-nav-item ${activeDocId === 'integration' ? 'active' : ''}`}
+                onClick={() => setActiveDocId('integration')}
+              >
+                <Send size={16} />
+                Integration Guide
+              </div>
+            </div>
+          </div>
+
+          <div className="gitbook-content dark-scrollbar">
+            {activeDocId === 'intro' && (
+              <>
+                <h1 className="gitbook-title">Introduction</h1>
+                <p className="gitbook-paragraph">
+                  Sui SafeSend is a decentralized, secure peer-to-peer payments escrow protocol built on the Sui blockchain that introduces <strong>reversible transactions</strong> to eliminate address anxiety and prevent fat-finger mistakes.
+                </p>
+                <div className="gitbook-callout">
+                  <Sparkles size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>How it works:</strong> SafeSend deposits funds into an on-chain shared escrow contract. The recipient can claim the funds after a configurable safety window closes. During this safety window, the sender can recall and cancel the payment instantly if a mistake was made.
+                  </div>
+                </div>
+                <h2 className="gitbook-subtitle">Key Features</h2>
+                <ul style={{ paddingLeft: '20px', margin: 0, color: 'var(--text-muted)', lineHeight: '1.7', fontSize: '0.98rem' }}>
+                  <li style={{ marginBottom: '8px' }}><strong>Reversible Safety Window</strong>: Recall payments instantly before they are finalized.</li>
+                  <li style={{ marginBottom: '8px' }}><strong>zkLogin Integration</strong>: Send funds directly to email addresses. The recipient claims them via passwordless Google OAuth.</li>
+                  <li style={{ marginBottom: '8px' }}><strong>Background Keeper Bot</strong>: Bots auto-release finalized payments, making execution seamless and gasless for the recipient.</li>
+                  <li style={{ marginBottom: '8px' }}><strong>Gas Faucet Helper</strong>: Auto-funds new zkLogin addresses with gas SUI if they have pending escrows, ensuring zero onboarding friction.</li>
+                </ul>
+              </>
+            )}
+
+            {activeDocId === 'contract' && (
+              <>
+                <h1 className="gitbook-title">Move Smart Contract</h1>
+                <p className="gitbook-paragraph">
+                  The SafeSend Move contract manages deposits, claims, releases, and cancellations on-chain. Below is the Move definition of the shared <code>SafePayment</code> object.
+                </p>
+                <div className="gitbook-code-container">
+                  <div className="gitbook-code-header">
+                    <span className="gitbook-code-lang">move</span>
+                    <button className="gitbook-copy-btn" onClick={() => handleCopyDocCode('move-struct', MOVE_STRUCT_CODE)}>
+                      {docCopied['move-struct'] ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                      {docCopied['move-struct'] ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="gitbook-code">{MOVE_STRUCT_CODE}</pre>
+                </div>
+                <div className="gitbook-callout gitbook-callout-warning">
+                  <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Irreversibility:</strong> Once the <code>release_time</code> is reached, the sender can no longer call <code>cancel_payment</code>, making the transfer completely finalized and irreversible.
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeDocId === 'zklogin' && (
+              <>
+                <h1 className="gitbook-title">zkLogin Cryptography</h1>
+                <p className="gitbook-paragraph">
+                  Sui zkLogin allows users to authenticate using Web2 identity providers like Google OIDC. SafeSend derives a secure deterministic 128-bit BigInt salt from the email address to calculate the user's Sui address:
+                </p>
+                <div className="gitbook-code-container">
+                  <div className="gitbook-code-header">
+                    <span className="gitbook-code-lang">typescript</span>
+                    <button className="gitbook-copy-btn" onClick={() => handleCopyDocCode('zk-salt', ZKLOGIN_SALT_CODE)}>
+                      {docCopied['zk-salt'] ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                      {docCopied['zk-salt'] ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="gitbook-code">{ZKLOGIN_SALT_CODE}</pre>
+                </div>
+                <div className="gitbook-callout">
+                  <ShieldCheck size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Privacy Preserved:</strong> The salt is derived locally using client-side cryptographic hashing. The exact email is never exposed publicly in OIDC proofs, preserving user confidentiality.
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeDocId === 'keeper' && (
+              <>
+                <h1 className="gitbook-title">Keeper Automation</h1>
+                <p className="gitbook-paragraph">
+                  To guarantee zero-effort settlements, SafeSend deploys background keeper bots. The bot queries the blockchain for events, checks which payments are eligible for settlement, and triggers releases automatically:
+                </p>
+                <div className="gitbook-code-container">
+                  <div className="gitbook-code-header">
+                    <span className="gitbook-code-lang">typescript</span>
+                    <button className="gitbook-copy-btn" onClick={() => handleCopyDocCode('keeper-code', KEEPER_AUTOCLAIM_CODE)}>
+                      {docCopied['keeper-code'] ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                      {docCopied['keeper-code'] ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="gitbook-code">{KEEPER_AUTOCLAIM_CODE}</pre>
+                </div>
+                <div className="gitbook-callout gitbook-callout-success">
+                  <CheckCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Keeper Bot active:</strong> Running locally on port <code>3001</code>. It also provides a CORS-enabled gas faucet for new zkLogin users with pending escrows, helping them pay for transaction claims.
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeDocId === 'integration' && (
+              <>
+                <h1 className="gitbook-title">Integration Guide</h1>
+                <p className="gitbook-paragraph">
+                  Developers can easily integrate SafeSend into their dApps using `@mysten/dapp-kit` or other typescript SDKs. Below is a complete transaction block structure for creating escrows:
+                </p>
+                <div className="gitbook-code-container">
+                  <div className="gitbook-code-header">
+                    <span className="gitbook-code-lang">typescript</span>
+                    <button className="gitbook-copy-btn" onClick={() => handleCopyDocCode('integration-code', INTEGRATION_CODE)}>
+                      {docCopied['integration-code'] ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                      {docCopied['integration-code'] ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="gitbook-code">{INTEGRATION_CODE}</pre>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* SafeSend App Dashboard / Landing View Mode */
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          {!activeAddress ? (
+            /* Logged Out: Premium Landing Page Layout */
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              
+              {/* Hero Banner Section */}
+              <section className="landing-hero">
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'var(--blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+                  <Lock size={32} color="var(--blue-primary)" />
+                </div>
+                <h1 className="landing-title">
+                  Fast, Safe &amp; Reversible Payments
+                </h1>
+                <p className="landing-subtitle">
+                  Send SUI to any wallet address or email. Recall mistakes instantly before final settlement, or let our keeper auto-deliver upon expiry.
+                </p>
+                <button 
+                  className="btn-venmo-primary"
+                  onClick={() => setShowEmailModal(true)}
+                  style={{ padding: '16px 36px', fontSize: '1.05rem', marginTop: '10px' }}
+                >
+                  <Wallet size={18} />
+                  Access SafeSend Dashboard
+                </button>
+              </section>
+
+              {/* Marketing Features Grid Section */}
+              <section className="landing-feature-section">
                 
-                {/* Incoming Payments */}
-                <div className="glass-card">
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                    <Unlock size={18} color="var(--accent)" />
-                    Incoming Escrow Payments
-                  </h3>
-                  
-                  {isLoadingPayments ? (
-                    <div style={{ padding: '30px', color: 'var(--text-light)' }} className="shimmer">Loading incoming escrows...</div>
-                  ) : receivedPayments.length === 0 ? (
-                    <div style={{ padding: '40px', color: 'var(--text-light)', border: '1px dashed var(--border)', borderRadius: '12px' }}>
-                      No incoming escrows found for your account.
+                {/* Feature 1: Security */}
+                <div className="landing-feature-row">
+                  <div className="landing-feature-text">
+                    <h2 className="landing-feature-headline">Security that's always-on</h2>
+                    <p className="landing-feature-description">
+                      Every transaction is securely held in an on-chain shared smart contract safety window. If you spot an error, reverse the transfer instantly and pull your SUI back to your wallet. Sleep peacefully knowing mistakes are reversible.
+                    </p>
+                  </div>
+                  <div className="landing-feature-image-container">
+                    <div className="landing-feature-image-wrapper">
+                      <img 
+                        src="/security_feature.png" 
+                        alt="Security Always On" 
+                        className="landing-feature-image"
+                        style={{ maxHeight: '340px' }}
+                      />
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      {receivedPayments.map(p => {
-                        const isExpired = p.releaseTime < Date.now();
-                        const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
-                        return (
-                          <div key={p.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
-                            <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                              <span style={{ fontWeight: 600, color: 'var(--text-h)', fontSize: '1.1rem' }}>
-                                {p.amount} {p.coinType}
-                              </span>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                                From: <code style={{ fontSize: '0.75rem' }}>{p.sender}</code>
-                              </span>
-                              {p.recipientEmail && (
-                                <span style={{ fontSize: '0.8rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Mail size={12} />
-                                  Sent to email: {p.recipientEmail}
-                                </span>
-                              )}
-                              {!isExpired ? (
-                                <span style={{ fontSize: '0.8rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Clock size={12} />
-                                  Reversible window active: {Math.floor(timeLeft / 60)}m {timeLeft % 60}s left
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.8rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Sparkles size={12} />
-                                  Safety window closed. Auto-settling shortly or click Claim.
-                                </span>
-                              )}
+                  </div>
+                </div>
+
+                {/* Feature 2: Digital Wallet */}
+                <div className="landing-feature-row reverse">
+                  <div className="landing-feature-text">
+                    <h2 className="landing-feature-headline">Load your digital wallet</h2>
+                    <p className="landing-feature-description">
+                      Send funds directly to any Google email address. SafeSend deterministically derives their OIDC zkLogin address. The recipient simply signs in with Google to access their digital wallet and claim the funds directly, with gas fees funded automatically by our keeper bot.
+                    </p>
+                  </div>
+                  <div className="landing-feature-image-container">
+                    <div className="landing-feature-image-wrapper">
+                      <img 
+                        src="/digital_wallet_feature.png" 
+                        alt="Load Digital Wallet" 
+                        className="landing-feature-image"
+                        style={{ maxHeight: '340px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </section>
+
+              {/* Uniswap-style Footer */}
+              {renderFooter()}
+
+            </div>
+          ) : (
+            /* Logged In: Clean Simple organized Dashboard Details UI */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              {/* Organized status notifications */}
+              {errorMessage && (
+                <div className="venmo-card" style={{ borderLeft: '5px solid var(--red-error)', background: 'var(--red-light)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '780px', margin: '0 auto', width: '100%' }}>
+                  <AlertCircle color="var(--red-error)" size={20} style={{ flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{errorMessage}</span>
+                </div>
+              )}
+
+              {sendSuccess && (
+                <div className="venmo-card" style={{ borderLeft: '5px solid var(--green-success)', background: 'var(--green-light)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '780px', margin: '0 auto', width: '100%' }}>
+                  <CheckCircle color="var(--green-success)" size={20} style={{ flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>{sendSuccess}</span>
+                </div>
+              )}
+
+              {/* Minimalist Dashboard content */}
+              <div className="venmo-card" style={{ maxWidth: '780px', margin: '0 auto', width: '100%', padding: '36px' }}>
+                
+                {/* Dashboard Header Title */}
+                <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                  <h1 style={{ fontSize: '2.2rem', color: 'var(--text-dark)', margin: '0 0 10px 0', fontWeight: 800, letterSpacing: '-0.8px' }}>Reversible Crypto Payments</h1>
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', margin: 0, maxWidth: '580px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+                    Secure, reversible SUI escrow transfers. Send payments to standard addresses or Google emails with complete reversal safety windows.
+                  </p>
+                </div>
+
+                {/* Dashboard Tab navigation */}
+                <div style={{ display: 'flex', borderBottom: '2px solid var(--border-light)', marginBottom: '32px', gap: '28px', justifyContent: 'center' }}>
+                  <button 
+                    onClick={() => setActiveTab('send')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '0 12px 14px',
+                      color: activeTab === 'send' ? 'var(--blue-primary)' : 'var(--text-muted)',
+                      fontWeight: 800,
+                      fontSize: '1rem',
+                      cursor: 'pointer',
+                      borderBottom: activeTab === 'send' ? '3px solid var(--blue-primary)' : '3px solid transparent',
+                      marginBottom: '-2px',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Send size={16} />
+                    Send Escrow
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('manage')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '0 12px 14px',
+                      color: activeTab === 'manage' ? 'var(--blue-primary)' : 'var(--text-muted)',
+                      fontWeight: 800,
+                      fontSize: '1rem',
+                      cursor: 'pointer',
+                      borderBottom: activeTab === 'manage' ? '3px solid var(--blue-primary)' : '3px solid transparent',
+                      marginBottom: '-2px',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Clock size={16} />
+                    Active Escrows ({sentPayments.length + receivedPayments.length})
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('history')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '0 12px 14px',
+                      color: activeTab === 'history' ? 'var(--blue-primary)' : 'var(--text-muted)',
+                      fontWeight: 800,
+                      fontSize: '1rem',
+                      cursor: 'pointer',
+                      borderBottom: activeTab === 'history' ? '3px solid var(--blue-primary)' : '3px solid transparent',
+                      marginBottom: '-2px',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <History size={16} />
+                    History Logs ({historyPayments.length})
+                  </button>
+                </div>
+
+                {/* Dashboard Inner content panels */}
+                {activeTab === 'send' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    
+                    {/* Destination Switcher */}
+                    <div style={{ display: 'flex', gap: '10px', background: 'var(--bg-card-light)', padding: '5px', borderRadius: '12px', width: 'fit-content', alignSelf: 'center' }}>
+                      <button 
+                        type="button"
+                        onClick={() => setSendMode('wallet')}
+                        style={{
+                          background: sendMode === 'wallet' ? 'var(--bg-card-white)' : 'transparent',
+                          color: sendMode === 'wallet' ? 'var(--blue-primary)' : 'var(--text-muted)',
+                          border: 'none',
+                          padding: '8px 18px',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          boxShadow: sendMode === 'wallet' ? '0 2px 5px rgba(0,0,0,0.06)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        Sui Address
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setSendMode('email')}
+                        style={{
+                          background: sendMode === 'email' ? 'var(--bg-card-white)' : 'transparent',
+                          color: sendMode === 'email' ? 'var(--blue-primary)' : 'var(--text-muted)',
+                          border: 'none',
+                          padding: '8px 18px',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          boxShadow: sendMode === 'email' ? '0 2px 5px rgba(0,0,0,0.06)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        Google Email (zkLogin)
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSendPayment} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {sendMode === 'wallet' ? (
+                        <div className="venmo-input-wrapper">
+                          <label className="venmo-input-label">Recipient Sui Wallet Address</label>
+                          <input 
+                            type="text" 
+                            className="venmo-input" 
+                            placeholder="0x80445..." 
+                            value={recipient}
+                            onChange={(e) => setRecipient(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="venmo-input-wrapper">
+                          <label className="venmo-input-label">Recipient Email Address</label>
+                          <input 
+                            type="email" 
+                            className="venmo-input" 
+                            placeholder="recipient@example.com" 
+                            value={recipientEmail}
+                            onChange={(e) => setRecipientEmail(e.target.value)}
+                          />
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.3 }}>
+                            * We derive a zkLogin address. The recipient claims SUI by logging into their Gmail. Note: Email escrows must be claimed manually by the recipient.
+                          </span>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                        <div className="venmo-input-wrapper">
+                          <label className="venmo-input-label">Amount</label>
+                          <input 
+                            type="number" 
+                            step="any"
+                            className="venmo-input" 
+                            placeholder="0.0" 
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                          />
+                        </div>
+                        <div className="venmo-input-wrapper">
+                          <label className="venmo-input-label">Asset</label>
+                          <select 
+                            className="venmo-input venmo-select" 
+                            value={coinType} 
+                            onChange={(e) => setCoinType(e.target.value)}
+                          >
+                            <option value="SUI">SUI</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="venmo-input-wrapper">
+                        <label className="venmo-input-label">Safety Window (Reversal Duration)</label>
+                        <select 
+                          className="venmo-input venmo-select" 
+                          value={lockDuration} 
+                          onChange={(e) => setLockDuration(e.target.value)}
+                        >
+                          <option value="60">1 Minute (Testing / Demo)</option>
+                          <option value="3600">1 Hour (Standard)</option>
+                          <option value="43200">12 Hours (Safe)</option>
+                          <option value="86400">24 Hours (Extreme Protection)</option>
+                        </select>
+                      </div>
+
+                      {/* Note */}
+                      <div className="venmo-input-wrapper">
+                        <label className="venmo-input-label">What is it for? (Note)</label>
+                        <input 
+                          type="text" 
+                          className="venmo-input" 
+                          placeholder="pizza, coffee, services splits..." 
+                          value={paymentNote}
+                          onChange={(e) => setPaymentNote(e.target.value)}
+                        />
+                      </div>
+
+                      <button type="submit" className="btn-venmo-primary" style={{ padding: '16px', fontSize: '1rem', marginTop: '8px' }} disabled={isSending}>
+                        {isSending ? "Creating Escrow Vault..." : "Send Reversible SUI"}
+                      </button>
+                    </form>
+
+                    {/* Flow diagram visualizer */}
+                    {animatingStep > 0 && (
+                      <div style={{ marginTop: '20px', borderTop: '1.5px solid var(--border-light)', paddingTop: '20px' }}>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--text-dark)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px', textAlign: 'left' }}>On-Chain Transaction Flow</h4>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div className="pulse-node" style={{ width: '42px', height: '42px', borderRadius: '50%', background: animatingStep >= 1 ? 'var(--blue-primary)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s' }}>
+                              <Coins size={16} color={animatingStep >= 1 ? '#fff' : 'var(--text-muted)'} />
                             </div>
-                            
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                              <span className={`badge ${isExpired ? 'badge-success' : 'badge-warning'}`}>
-                                {isExpired ? "Finalized" : "Reversible"}
-                              </span>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Sender</span>
+                          </div>
+
+                          <div style={{ flex: 1, padding: '0 10px', height: '8px' }}>
+                            <svg width="100%" height="8" viewBox="0 0 100 8" fill="none" preserveAspectRatio="none">
+                              <path d="M0,4 H100" stroke={animatingStep >= 1 ? 'var(--blue-primary)' : 'var(--border-light)'} strokeWidth="2.5" className={animatingStep >= 1 ? 'flowing-line' : ''} />
+                            </svg>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div className={animatingStep >= 2 ? 'pulse-node' : ''} style={{ width: '42px', height: '42px', borderRadius: '50%', background: animatingStep >= 2 ? 'var(--blue-primary)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s' }}>
+                              <Lock size={16} color={animatingStep >= 2 ? '#fff' : 'var(--text-muted)'} />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Escrow Vault</span>
+                          </div>
+
+                          <div style={{ flex: 1, padding: '0 10px', height: '8px' }}>
+                            <svg width="100%" height="8" viewBox="0 0 100 8" fill="none" preserveAspectRatio="none">
+                              <path d="M0,4 H100" stroke={animatingStep >= 3 ? 'var(--blue-primary)' : 'var(--border-light)'} strokeWidth="2.5" className={animatingStep >= 3 ? 'flowing-line' : ''} />
+                            </svg>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: animatingStep >= 3 ? 'var(--blue-primary)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s' }}>
+                              <Unlock size={16} color={animatingStep >= 3 ? '#fff' : 'var(--text-muted)'} />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Recipient</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'manage' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                    
+                    {/* Incoming Escrows */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+                      <h4 style={{ fontSize: '0.9rem', color: 'var(--text-dark)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', margin: 0 }}>
+                        Incoming Payments
+                      </h4>
+                      {isLoadingPayments ? (
+                        <div style={{ padding: '20px', color: 'var(--text-muted)' }} className="shimmer">Loading incoming escrows...</div>
+                      ) : receivedPayments.length === 0 ? (
+                        <div style={{ padding: '30px 20px', color: 'var(--text-muted)', border: '1.5px dashed var(--border-light)', borderRadius: '16px', textAlign: 'center', fontSize: '0.9rem' }}>
+                          No incoming escrows found.
+                        </div>
+                      ) : (
+                        receivedPayments.map(p => {
+                          const isExpired = p.releaseTime < Date.now();
+                          const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
+                          return (
+                            <div key={p.id} style={{ 
+                              background: 'var(--bg-card-light)', 
+                              border: '1px solid var(--border-light)', 
+                              borderRadius: '16px', 
+                              padding: '16px 20px', 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center' 
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--blue-primary)' }}>{p.amount} SUI</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>From: <code>{p.sender.substring(0, 8)}...{p.sender.substring(p.sender.length - 6)}</code></span>
+                                {p.recipientEmail && <span style={{ fontSize: '0.8rem', color: 'var(--text-dark)', fontWeight: 600 }}>Sent to: {p.recipientEmail}</span>}
+                                {!isExpired ? (
+                                  <span className="venmo-badge venmo-badge-warning">
+                                    <Clock size={12} />
+                                    Reversible window: {Math.floor(timeLeft / 60)}m {timeLeft % 60}s left
+                                  </span>
+                                ) : (
+                                  <span className="venmo-badge venmo-badge-success">
+                                    <CheckCircle size={12} />
+                                    Safety window closed. Click Claim.
+                                  </span>
+                                )}
+                              </div>
                               <button 
-                                className="btn-primary"
+                                className="btn-venmo-primary"
                                 onClick={() => handleClaimPayment(p.id)}
                                 disabled={!isExpired}
-                                style={{ opacity: isExpired ? 1 : 0.5, cursor: isExpired ? 'pointer' : 'not-allowed' }}
+                                style={{ opacity: isExpired ? 1 : 0.5, padding: '10px 20px', fontSize: '0.85rem' }}
                               >
                                 Claim Funds
                               </button>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Sent Payments (In Transit) */}
-                <div className="glass-card">
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                    <Lock size={18} color="var(--accent)" />
-                    Sent Payments (In Escrow)
-                  </h3>
-                  
-                  {isLoadingPayments ? (
-                    <div style={{ padding: '30px', color: 'var(--text-light)' }} className="shimmer">Loading sent escrows...</div>
-                  ) : sentPayments.length === 0 ? (
-                    <div style={{ padding: '40px', color: 'var(--text-light)', border: '1px dashed var(--border)', borderRadius: '12px' }}>
-                      You have no sent payments currently in escrow.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      {sentPayments.map(p => {
-                        const canCancel = p.releaseTime > Date.now();
-                        const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
-                        
-                        return (
-                          <div key={p.id} className="glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
-                            <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                              <span style={{ fontWeight: 600, color: 'var(--text-h)', fontSize: '1.1rem' }}>
-                                {p.amount} {p.coinType}
-                              </span>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                                To: <code style={{ fontSize: '0.75rem' }}>{p.recipient}</code>
-                              </span>
-                              {p.recipientEmail && (
-                                <span style={{ fontSize: '0.8rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Mail size={12} />
-                                  Sent to email: {p.recipientEmail}
-                                </span>
-                              )}
-                              {canCancel ? (
-                                <span style={{ fontSize: '0.8rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Clock size={12} />
-                                  Reversal window active: {Math.floor(timeLeft / 60)}m {timeLeft % 60}s left
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.8rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Sparkles size={12} />
-                                  Finalized. Settling to recipient...
-                                </span>
-                              )}
-                            </div>
-                            
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                              <span className={`badge ${canCancel ? 'badge-warning' : 'badge-success'}`}>
-                                {canCancel ? "Reversible" : "Finalized"}
-                              </span>
+                    {/* Sent Escrows */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+                      <h4 style={{ fontSize: '0.9rem', color: 'var(--text-dark)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', margin: 0 }}>
+                        Sent Payments (In Escrow)
+                      </h4>
+                      {isLoadingPayments ? (
+                        <div style={{ padding: '20px', color: 'var(--text-muted)' }} className="shimmer">Loading sent escrows...</div>
+                      ) : sentPayments.length === 0 ? (
+                        <div style={{ padding: '30px 20px', color: 'var(--text-muted)', border: '1.5px dashed var(--border-light)', borderRadius: '16px', textAlign: 'center', fontSize: '0.9rem' }}>
+                          No sent payments currently locked.
+                        </div>
+                      ) : (
+                        sentPayments.map(p => {
+                          const canCancel = p.releaseTime > Date.now();
+                          const timeLeft = Math.max(0, Math.round((p.releaseTime - Date.now()) / 1000));
+                          return (
+                            <div key={p.id} style={{ 
+                              background: 'var(--bg-card-light)', 
+                              border: '1px solid var(--border-light)', 
+                              borderRadius: '16px', 
+                              padding: '16px 20px', 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center' 
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-dark)' }}>{p.amount} SUI</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>To: <code>{p.recipient.substring(0, 8)}...{p.recipient.substring(p.recipient.length - 6)}</code></span>
+                                {p.recipientEmail && <span style={{ fontSize: '0.8rem', color: 'var(--blue-primary)', fontWeight: 600 }}>Email: {p.recipientEmail}</span>}
+                                {canCancel ? (
+                                  <span className="venmo-badge venmo-badge-warning">
+                                    <Clock size={12} />
+                                    Reversible: {Math.floor(timeLeft / 60)}m {timeLeft % 60}s left
+                                  </span>
+                                ) : (
+                                  <span className="venmo-badge venmo-badge-success">
+                                    <CheckCircle size={12} />
+                                    Finalized (Auto-settles soon)
+                                  </span>
+                                )}
+                              </div>
                               {canCancel && (
                                 <button 
-                                  className="btn-secondary"
+                                  className="btn-venmo-danger"
                                   onClick={() => handleCancelPayment(p.id)}
-                                  style={{ borderColor: '#ef4444', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.05)' }}
+                                  style={{ padding: '10px 18px', fontSize: '0.82rem' }}
                                 >
                                   <XCircle size={14} />
-                                  Cancel & Refund
+                                  Cancel &amp; Recall
                                 </button>
                               )}
                             </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                  </div>
+                )}
+
+                {activeTab === 'history' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+                    <h3 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', margin: 0, fontWeight: 800 }}>Completed Settlements</h3>
+                    {isLoadingPayments ? (
+                      <div style={{ padding: '20px', color: 'var(--text-muted)' }} className="shimmer">Loading history...</div>
+                    ) : historyPayments.length === 0 ? (
+                      <div style={{ padding: '30px 20px', color: 'var(--text-muted)', border: '1.5px dashed var(--border-light)', borderRadius: '16px', textAlign: 'center', fontSize: '0.9rem' }}>
+                        No completed transfers found.
+                      </div>
+                    ) : (
+                      historyPayments.map(p => {
+                        const isSender = p.sender.toLowerCase() === activeAddress.toLowerCase();
+                        return (
+                          <div key={p.id} style={{ 
+                            background: 'var(--bg-card-white)', 
+                            border: '1px solid var(--border-light)', 
+                            borderLeft: isSender ? '5px solid var(--blue-primary)' : '5px solid var(--green-success)',
+                            borderRadius: '16px', 
+                            padding: '16px 20px', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center' 
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span style={{ fontWeight: 800, color: 'var(--text-dark)', fontSize: '1.05rem' }}>
+                                {isSender ? "-" : "+"}{p.amount} SUI
+                              </span>
+                              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {isSender ? `To: ${p.recipient.substring(0, 10)}...` : `From: ${p.sender.substring(0, 10)}...`}
+                              </span>
+                              {p.recipientEmail && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Email: {p.recipientEmail}</span>}
+                            </div>
+                            <div>
+                              {p.isCancelled ? (
+                                <span className="venmo-badge venmo-badge-error">Recalled</span>
+                              ) : (
+                                <span className="venmo-badge venmo-badge-success">Settled</span>
+                              )}
+                            </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            )}
-
-            {/* Tab 3: Transaction History */}
-            {activeTab === 'history' && (
-              <div className="glass-card">
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                  <History size={18} color="var(--accent)" />
-                  Completed Settlements
-                </h3>
-
-                {isLoadingPayments ? (
-                  <div style={{ padding: '30px', color: 'var(--text-light)' }} className="shimmer">Loading history logs...</div>
-                ) : historyPayments.length === 0 ? (
-                  <div style={{ padding: '40px', color: 'var(--text-light)', border: '1px dashed var(--border)', borderRadius: '12px' }}>
-                    No completed transactions found for this account session.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {historyPayments.map(p => {
-                      const isSender = p.sender.toLowerCase() === activeAddress.toLowerCase();
-                      
-                      return (
-                        <div key={p.id} className="glass-card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: isSender ? '4px solid #a855f7' : '4px solid #10b981' }}>
-                          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <span style={{ fontWeight: 600, color: 'var(--text-h)' }}>
-                              {isSender ? "-" : "+"}{p.amount} {p.coinType}
-                            </span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                              {isSender ? `To: ${p.recipient}` : `From: ${p.sender}`}
-                            </span>
-                            {p.recipientEmail && (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
-                                Email target: {p.recipientEmail}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div>
-                            {p.isCancelled ? (
-                              <span className="badge badge-warning" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5' }}>
-                                Recalled & Refunded
-                              </span>
-                            ) : (
-                              <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#a7f3d0' }}>
-                                Settled
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                      })
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </>
-        )}
-      </main>
+
+              {/* Uniswap-style Footer */}
+              {renderFooter()}
+
+            </div>
+          )}
+        </main>
+      )}
 
       {/* zkLogin Loading Overlay */}
       {zkLoginLoading && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div className="glass-card" style={{ maxWidth: '400px', width: '90%', padding: '40px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--accent)' }}>
-            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(168, 85, 247, 0.1)', border: '1px solid var(--accent)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Lock size={28} color="var(--accent)" className="flowing-line" style={{ animation: 'spin 2s linear infinite' }} />
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(4, 8, 21, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div className="navy-card" style={{ maxWidth: '400px', width: '90%', padding: '40px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--blue-sky)' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid var(--blue-sky)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Lock size={28} color="var(--blue-sky)" style={{ animation: 'spin 2s linear infinite' }} />
             </div>
-            <h3 style={{ fontSize: '1.2rem', color: 'var(--text-h)', margin: 0 }}>Sui zkLogin Authentication</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>
+            <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0, fontWeight: 800 }}>zkLogin Verification</h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-light)', margin: 0, lineHeight: 1.5 }}>
               {zkLoginStatus}
             </p>
           </div>
         </div>
       )}
 
-      {/* Unified Login / Connect Modal */}
+      {/* Unified Login Modal */}
       {showEmailModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="glass-card" style={{ maxWidth: '460px', width: '90%', padding: '30px 25px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--accent)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(4, 8, 21, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="venmo-card" style={{ maxWidth: '460px', width: '90%', padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--border-light)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Wallet size={20} color="var(--accent)" />
+              <h3 style={{ margin: 0, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dark)', fontWeight: 800 }}>
+                <Wallet size={22} color="var(--blue-primary)" />
                 Access SafeSend
               </h3>
-              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-light)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+              <button 
+                onClick={() => setShowEmailModal(false)} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-light)', fontSize: '1.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              >
+                ×
+              </button>
             </div>
             
-            <p style={{ fontSize: '0.85rem', color: 'var(--text)', margin: 0, lineHeight: 1.4 }}>
-              Choose your preferred method to sign in. You can use your Google account for an instant passwordless session, or connect a browser wallet.
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4, textAlign: 'left' }}>
+              Choose your preferred method to sign in. You can use your Google account for an instant passwordless session, or connect a browser extension wallet.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               {/* Option A: Google zkLogin */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <Mail size={16} color="var(--accent)" />
-                  <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-h)' }}>Option 1: Google zkLogin</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--bg-card-light)', padding: '18px', borderRadius: '16px', border: '1.5px solid var(--border-light)', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <Mail size={16} color="var(--blue-primary)" />
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-dark)' }}>Option 1: Google zkLogin</span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', lineHeight: 1.3 }}>
-                  Create or access a secure wallet tied to your Google email. No extension required.
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                  Create or access a secure wallet tied to your Gmail. No extensions or seed phrases required.
                 </span>
                 
                 <button 
                   onClick={handleGoogleLogin} 
-                  className="btn-secondary" 
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#fff', color: '#000', fontWeight: 600, padding: '10px', border: 'none', cursor: 'pointer', borderRadius: '8px', width: '100%', marginTop: '6px' }}
+                  className="btn-venmo-primary" 
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: '#fff', color: '#0f172a', border: '1.5px solid var(--border-light)', fontWeight: 700, padding: '12px', cursor: 'pointer', borderRadius: '9999px', width: '100%', marginTop: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ display: 'block' }}>
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
@@ -1312,21 +1804,21 @@ function App() {
               </div>
 
               {/* Option B: Browser Wallet */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <Wallet size={16} color="var(--accent)" />
-                  <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-h)' }}>Option 2: Browser Wallet</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--bg-card-light)', padding: '18px', borderRadius: '16px', border: '1.5px solid var(--border-light)', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <Wallet size={16} color="var(--blue-primary)" />
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-dark)' }}>Option 2: Browser Wallet</span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', lineHeight: 1.3 }}>
-                  Connect using standard browser extensions like Sui Wallet or Surf.
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                  Connect using standard browser extensions (Sui Wallet, Surf, etc.).
                 </span>
 
                 <div style={{ marginTop: '6px', width: '100%' }}>
                   <ConnectModal
                     trigger={
                       <button 
-                        className="btn-primary" 
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600 }}
+                        className="btn-venmo-primary" 
+                        style={{ width: '100%', padding: '12px', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 700 }}
                       >
                         Connect Browser Wallet
                       </button>
@@ -1347,11 +1839,6 @@ function App() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer style={{ marginTop: 'auto', padding: '20px 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)', fontSize: '0.85rem' }}>
-        <span>Sui SafeSend © 2026. Built for the Sui Overflow Hackathon.</span>
-        <span>Secure, Reversible Payments powered by zkLogin.</span>
-      </footer>
     </div>
   );
 }

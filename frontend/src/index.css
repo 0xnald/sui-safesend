@@ -1,30 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
 :root {
-  --text: #9ca3af;
-  --text-light: #6b7280;
-  --text-h: #f3f4f6;
-  --bg: #090b10;
-  --card-bg: rgba(17, 19, 28, 0.65);
-  --card-glow: rgba(147, 51, 234, 0.08);
-  --border: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(168, 85, 247, 0.4);
+  /* Logo Color Combinations & Venmo Styling */
+  --bg-page: #040815; /* Deep navy/dark blue from logo */
+  --bg-glow: radial-gradient(circle at 50% 50%, rgba(0, 112, 243, 0.12) 0%, transparent 60%);
   
-  --accent: #a855f7;
-  --accent-secondary: #ec4899;
-  --accent-bg: rgba(168, 85, 247, 0.1);
-  --social-bg: rgba(255, 255, 255, 0.03);
-  --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  /* Venmo white-based card elements */
+  --bg-card-white: #ffffff;
+  --bg-card-light: #f8fafc;
+  --bg-card-dark: #0a1128; /* Deep navy container elements */
+  --text-dark: #0f172a; /* Slate 900 for high readability on white */
+  --text-muted: #475569; /* Slate 600 */
+  --text-light: #94a3b8; /* Slate 400 */
+  --text-white: #ffffff;
+  
+  --border-light: #e2e8f0;
+  --border-blue: rgba(0, 112, 243, 0.15);
+  --border-navy: #1e293b;
+  
+  /* Accent Colors from logo */
+  --blue-primary: #0070F3; /* Vibrant blue */
+  --blue-sky: #38BDF8; /* Sky/light blue */
+  --blue-light: #e0f2fe; /* Light sky blue background */
+  --blue-hover: #0060d9;
+  
+  /* Operational colors */
+  --green-success: #10b981;
+  --green-light: #ecfdf5;
+  --red-error: #ef4444;
+  --red-light: #fef2f2;
+  --yellow-warning: #f59e0b;
+  --yellow-light: #fefbeb;
 
-  --sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Fonts */
+  --sans: 'Plus Jakarta Sans', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  font: 16px/150% var(--sans);
-  letter-spacing: 0.2px;
+  font: 16px/1.6 var(--sans);
+  letter-spacing: -0.1px;
   color-scheme: dark;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--text-light);
+  background: var(--bg-page);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.05) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(0, 112, 243, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.06) 0px, transparent 50%);
   background-attachment: fixed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -36,6 +55,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  background: var(--bg-page);
 }
 
 #root {
@@ -46,72 +66,89 @@ body {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  padding: 20px;
+  padding: 20px 24px;
 }
 
-/* Glassmorphism Cards */
-.glass-card {
-  background: var(--card-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: var(--shadow), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+/* Venmo-style Cards */
+.venmo-card {
+  background: var(--bg-card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-dark);
   position: relative;
   overflow: hidden;
 }
 
-.glass-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  background: radial-gradient(circle at top left, var(--card-glow), transparent 70%);
-  pointer-events: none;
-}
-
-.glass-card:hover {
-  border-color: rgba(168, 85, 247, 0.2);
+.venmo-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25);
 }
 
-/* Typography */
-h1, h2, h3, h4 {
-  font-family: var(--sans);
-  font-weight: 700;
-  color: var(--text-h);
-  margin: 0;
+/* Dark contrast cards */
+.navy-card {
+  background: var(--bg-card-dark);
+  border: 1px solid var(--border-navy);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: var(--text-white);
+  transition: all 0.2s ease;
 }
 
-h1 {
-  font-size: 3.5rem;
-  letter-spacing: -2px;
-  line-height: 1.1;
-  background: linear-gradient(to right, #f3f4f6, #d8b4fe, #f3f4f6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.navy-card:hover {
+  border-color: rgba(56, 189, 248, 0.25);
 }
 
-h2 {
-  font-size: 1.8rem;
-  letter-spacing: -0.5px;
-}
-
-/* Buttons */
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent) 0%, #7e22ce 100%);
-  color: #fff;
+/* Buttons in Venmo rounded pill shape */
+.btn-venmo-primary {
+  background: var(--blue-primary);
+  color: var(--text-white);
   border: none;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 600;
+  padding: 14px 28px;
+  border-radius: 9999px;
+  font-weight: 700;
   font-size: 0.95rem;
+  font-family: var(--sans);
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.25);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 112, 243, 0.3);
+}
+
+.btn-venmo-primary:hover {
+  background: var(--blue-hover);
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4);
+}
+
+.btn-venmo-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-venmo-primary:disabled {
+  background: var(--text-light);
+  color: rgba(255, 255, 255, 0.7);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-venmo-secondary {
+  background: var(--blue-light);
+  color: var(--blue-primary);
+  border: 1px solid transparent;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-family: var(--sans);
+  cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -119,24 +156,19 @@ h2 {
   gap: 8px;
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.35);
-  filter: brightness(1.1);
+.btn-venmo-secondary:hover {
+  background: #bae6fd;
+  color: var(--blue-hover);
 }
 
-.btn-primary:active {
-  transform: translateY(1px);
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  color: var(--text-h);
+.btn-venmo-outline {
+  background: transparent;
+  border: 1.5px solid var(--border-light);
+  color: var(--text-muted);
   padding: 12px 24px;
-  border-radius: 12px;
+  border-radius: 9999px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -145,98 +177,558 @@ h2 {
   gap: 8px;
 }
 
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+.btn-venmo-outline:hover {
+  border-color: var(--text-muted);
+  color: var(--text-dark);
+  background: var(--bg-card-light);
 }
 
-/* Inputs */
-.input-field {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border);
-  color: var(--text-h);
-  padding: 14px 18px;
-  border-radius: 12px;
-  font-size: 0.95rem;
+.btn-venmo-danger {
+  background: var(--red-light);
+  color: var(--red-error);
+  border: 1px solid transparent;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-venmo-danger:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Venmo Form Inputs */
+.venmo-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.venmo-input-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.venmo-input {
+  background: var(--bg-card-light);
+  border: 1.5px solid var(--border-light);
+  color: var(--text-dark);
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-family: var(--sans);
   width: 100%;
   box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
-.input-field:focus {
+.venmo-input::placeholder {
+  color: var(--text-light);
+}
+
+.venmo-input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+  background: #ffffff;
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 4px rgba(0, 112, 243, 0.1);
 }
 
-/* Flow Visualizer Animation Classes */
-@keyframes flowPulse {
-  0% {
-    box-shadow: 0 0 0 0px rgba(168, 85, 247, 0.7);
-  }
-  100% {
-    box-shadow: 0 0 0 12px rgba(168, 85, 247, 0);
-  }
+.venmo-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px;
+  padding-right: 48px;
 }
 
-.pulse-node {
-  animation: flowPulse 2s infinite;
+/* Layout Pill Switcher (Tab pills) */
+.pill-switcher {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-navy);
 }
 
-@keyframes dash {
-  to {
-    stroke-dashoffset: -40;
-  }
+.pill-btn {
+  background: transparent;
+  color: var(--text-light);
+  border: none;
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.flowing-line {
-  stroke-dasharray: 8, 4;
-  animation: dash 2s linear infinite;
+.pill-btn.active {
+  background: var(--blue-primary);
+  color: var(--text-white);
+  box-shadow: 0 4px 10px rgba(0, 112, 243, 0.25);
 }
 
-/* Status Badges */
-.badge {
+.pill-btn:hover:not(.active) {
+  color: var(--text-white);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Active escrows badges */
+.venmo-badge {
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 100px;
-  font-size: 0.8rem;
+  gap: 4px;
+}
+
+.venmo-badge-warning {
+  background: var(--yellow-light);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.venmo-badge-success {
+  background: var(--green-light);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.venmo-badge-error {
+  background: var(--red-light);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+/* GitBook Panel Layout */
+.gitbook-container {
+  display: flex;
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  height: 720px;
+  overflow: hidden;
+  color: var(--text-dark);
+}
+
+.gitbook-sidebar {
+  width: 280px;
+  background: var(--bg-card-light);
+  border-right: 1px solid var(--border-light);
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  overflow-y: auto;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.gitbook-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gitbook-sidebar-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding-left: 12px;
+}
+
+.gitbook-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gitbook-nav-item:hover {
+  background: rgba(0, 112, 243, 0.05);
+  color: var(--blue-primary);
+}
+
+.gitbook-nav-item.active {
+  background: rgba(0, 112, 243, 0.08);
+  color: var(--blue-primary);
+}
+
+.gitbook-content {
+  flex: 1;
+  padding: 40px 50px;
+  overflow-y: auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* GitBook Typography & Markdown Elements */
+.gitbook-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  line-height: 1.2;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 16px;
+  letter-spacing: -0.5px;
+}
+
+.gitbook-subtitle {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-top: 15px;
+  letter-spacing: -0.2px;
+}
+
+.gitbook-paragraph {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* Callout blocks inside GitBook */
+.gitbook-callout {
+  padding: 18px 22px;
+  border-radius: 12px;
+  border-left: 4px solid var(--blue-primary);
+  background: var(--blue-light);
+  color: #0369a1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.gitbook-callout-warning {
+  border-left-color: var(--yellow-warning);
+  background: var(--yellow-light);
+  color: #92400e;
+}
+
+.gitbook-callout-success {
+  border-left-color: var(--green-success);
+  background: var(--green-light);
+  color: #065f46;
+}
+
+/* Code blocks in GitBook */
+.gitbook-code-container {
+  position: relative;
+  background: #0f172a; /* Dark slate for high contrast code */
+  border-radius: 12px;
+  border: 1px solid var(--border-navy);
+  padding: 20px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.gitbook-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 8px;
+}
+
+.gitbook-code-lang {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-light);
   text-transform: uppercase;
 }
 
-.badge-success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+.gitbook-copy-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-light);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.badge-warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+.gitbook-copy-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text-white);
 }
 
-.badge-error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+.gitbook-code {
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+  text-align: left;
+  line-height: 1.5;
 }
 
-/* Shimmer Loading */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+/* Landing Page Layout Rules */
+.landing-hero {
+  padding: 80px 0 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
 }
 
-.shimmer {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+.landing-title {
+  font-size: 3.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-white);
+  letter-spacing: -2px;
+  max-width: 800px;
+  margin: 0;
+}
+
+.landing-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-light);
+  max-width: 620px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.landing-feature-section {
+  display: flex;
+  flex-direction: column;
+  gap: 100px;
+  padding: 60px 0;
+}
+
+.landing-feature-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 60px;
+}
+
+.landing-feature-row.reverse {
+  flex-direction: row-reverse;
+}
+
+.landing-feature-text {
+  flex: 1.2;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.landing-feature-headline {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: var(--text-white);
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin: 0;
+}
+
+.landing-feature-description {
+  font-size: 1.1rem;
+  color: var(--text-light);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.landing-feature-image-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.landing-feature-image-wrapper {
+  background: var(--bg-card-dark);
+  border: 1px solid var(--border-navy);
+  border-radius: 28px;
+  padding: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 112, 243, 0.05);
+  max-width: 100%;
+  display: flex;
+}
+
+.landing-feature-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
+/* Premium Uniswap-style Footer */
+.landing-footer {
+  margin-top: 100px;
+  padding: 60px 0 40px;
+  border-top: 1px solid var(--border-navy);
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.footer-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 50px;
+}
+
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 15px;
+  max-width: 280px;
+}
+
+.footer-links-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 150px);
+  gap: 30px;
+}
+
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  text-align: left;
+}
+
+.footer-col-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-white);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.footer-link {
+  color: var(--text-light);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-link:hover {
+  color: var(--blue-sky);
+}
+
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  padding-top: 30px;
+}
+
+.footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.footer-social-icon {
+  color: var(--text-light);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.footer-social-icon:hover {
+  color: var(--text-white);
+}
+
+.footer-btn-docs {
+  border: 1px solid var(--border-navy);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 18px 24px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  color: var(--text-white);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.footer-btn-docs:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(0, 112, 243, 0.04);
+}
+
+/* Spinner */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
