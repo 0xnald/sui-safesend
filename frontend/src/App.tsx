@@ -1137,6 +1137,20 @@ function App() {
                   <li style={{ marginBottom: '8px' }}><strong>Background Keeper Bot</strong>: Bots auto-release finalized payments, making execution seamless and gasless for the recipient.</li>
                   <li style={{ marginBottom: '8px' }}><strong>Gas Faucet Helper</strong>: Auto-funds new zkLogin addresses with gas SUI if they have pending escrows, ensuring zero onboarding friction.</li>
                 </ul>
+
+                <h2 className="gitbook-subtitle">On-Chain Deployment Details</h2>
+                <div className="gitbook-callout gitbook-callout-success" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', marginTop: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldCheck size={20} style={{ flexShrink: 0 }} />
+                    <strong>Sui Testnet Contract Live</strong>
+                  </div>
+                  <div style={{ fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                    <div><strong>Active Network:</strong> Sui Testnet</div>
+                    <div><strong>Package ID:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635</code></div>
+                    <div><strong>Treasury Wallet:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79</code></div>
+                    <div><strong>Platform Fee:</strong> 0.1% on successful claims and automatic releases</div>
+                  </div>
+                </div>
               </>
             )}
 
