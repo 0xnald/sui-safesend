@@ -305,7 +305,7 @@ function App() {
       const params = new URLSearchParams(hash.substring(1));
       const idToken = params.get('id_token');
       if (idToken) {
-        window.location.hash = '';
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
         handleGoogleRedirect(idToken);
       }
     }
