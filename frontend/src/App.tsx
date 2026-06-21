@@ -198,8 +198,8 @@ function App() {
 
   // Network Selector Context
   const { network, selectNetwork } = useSuiClientContext();
-  const [mainnetPackageId, setMainnetPackageId] = useState<string>(() => localStorage.getItem('safesend_mainnet_package') || '');
-  const [mainnetTreasury, setMainnetTreasury] = useState<string>(() => localStorage.getItem('safesend_mainnet_treasury') || '');
+  const [mainnetPackageId, setMainnetPackageId] = useState<string>(() => localStorage.getItem('safesend_mainnet_package') || '0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c');
+  const [mainnetTreasury, setMainnetTreasury] = useState<string>(() => localStorage.getItem('safesend_mainnet_treasury') || '0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79');
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const CURRENT_PACKAGE_ID = network === 'mainnet' 
@@ -2014,7 +2014,20 @@ function App() {
                 className="btn-venmo-primary"
                 style={{ flex: 1, padding: '12px' }}
               >
-                Save Configuration
+                Save
+              </button>
+              <button 
+                onClick={() => {
+                  setMainnetPackageId('0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c');
+                  setMainnetTreasury('0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79');
+                  localStorage.removeItem('safesend_mainnet_package');
+                  localStorage.removeItem('safesend_mainnet_treasury');
+                  setShowConfigModal(false);
+                }}
+                className="btn-venmo-secondary"
+                style={{ flex: 1, padding: '12px' }}
+              >
+                Reset Default
               </button>
               <button 
                 onClick={() => setShowConfigModal(false)}
