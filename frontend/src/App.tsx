@@ -131,47 +131,47 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "555776269604-
 const LogoSVG = ({ size = 36 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
     <defs>
-      <linearGradient id="dropletGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#0070F3" />
-        <stop offset="50%" stopColor="#38BDF8" />
-        <stop offset="100%" stopColor="#00C2FF" />
+      <linearGradient id="dropletGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#1E80F3" />
+        <stop offset="60%" stopColor="#38BDF8" />
+        <stop offset="100%" stopColor="#B3E0FF" />
       </linearGradient>
     </defs>
     
     <path 
       d="M50 8 C68 35, 82 55, 82 70 A 32 32 0 0 1 18 70 C18 55, 32 35, 50 8 Z" 
       stroke="url(#dropletGradient)" 
-      strokeWidth="6" 
+      strokeWidth="8" 
       fill="none" 
     />
     
     <path 
-      d="M58 38 C58 32, 42 32, 42 42 C42 47, 50 48, 50 48" 
+      d="M 59 36 C 59 27, 41 27, 41 38 C 41 44, 49 46, 50 48" 
       stroke="#FFFFFF" 
-      strokeWidth="7" 
+      strokeWidth="11" 
       strokeLinecap="round" 
       fill="none" 
     />
     
     <path 
-      d="M50 48 C50 48, 58 49, 58 54 C58 64, 42 64, 42 58" 
-      stroke="#0070F3" 
-      strokeWidth="7" 
+      d="M 50 48 C 51 50, 59 52, 59 58 C 59 69, 41 69, 41 60" 
+      stroke="#1E80F3" 
+      strokeWidth="11" 
       strokeLinecap="round" 
       fill="none" 
     />
     
     <path 
-      d="M28 72 C35 69, 41 75, 50 72 C59 69, 65 75, 72 72" 
+      d="M 28 73 C 38 70, 42 78, 50 75 C 58 72, 62 80, 72 77" 
       stroke="#38BDF8" 
-      strokeWidth="4" 
+      strokeWidth="5" 
       strokeLinecap="round" 
       fill="none" 
     />
     <path 
-      d="M24 78 C32 75, 40 81, 50 78 C60 75, 68 81, 76 78" 
-      stroke="#0070F3" 
-      strokeWidth="4" 
+      d="M 24 81 C 34 78, 38 86, 50 83 C 62 80, 66 88, 76 85" 
+      stroke="#1E80F3" 
+      strokeWidth="5" 
       strokeLinecap="round" 
       fill="none" 
     />
