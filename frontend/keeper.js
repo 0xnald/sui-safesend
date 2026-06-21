@@ -143,13 +143,6 @@ const server = http.createServer(async (req, res) => {
 
         console.log(`[SafeSend Keeper] Faucet request received for address: ${address}, email: ${email}`);
 
-        // Only allow faucet on Testnet!
-        if (NETWORK !== 'testnet') {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Gas faucet is only available on Testnet.' }));
-          return;
-        }
-
         // A. Verify that there is at least one active escrow for this email
         const createdEvents = await suiClient.queryEvents({
           query: { MoveEventType: `${PACKAGE_ID}::${MODULE_NAME}::PaymentCreated` },
