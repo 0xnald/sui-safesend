@@ -903,7 +903,7 @@ function App() {
           </div>
           <div className="footer-col">
             <span className="footer-col-title">Socials</span>
-            <a className="footer-link" href="https://x.com" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+            <a className="footer-link" href="https://x.com/suisfsend/" target="_blank" rel="noopener noreferrer">X / Twitter</a>
             <a className="footer-link" href="https://discord.com" target="_blank" rel="noopener noreferrer">Discord</a>
             <a className="footer-link" href="https://telegram.org" target="_blank" rel="noopener noreferrer">Telegram</a>
           </div>
@@ -913,7 +913,7 @@ function App() {
       <div className="footer-bottom">
         <div className="footer-socials">
           <a href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><Coins size={18} /></a>
-          <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><Sparkles size={18} /></a>
+          <a href="https://x.com/suisfsend/" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><Sparkles size={18} /></a>
           <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="footer-social-icon"><ShieldCheck size={18} /></a>
         </div>
         <div>
