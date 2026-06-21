@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/sui-prover",
+      "destination": "/api/sui-prover.js"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

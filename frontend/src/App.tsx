@@ -323,15 +323,12 @@ function App() {
     }
   }, []);
 
-  // Synchronize React navigation state with URL hash route
+  // Synchronize React navigation state with URL pathname route
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
+    const handlePopState = () => {
+      const path = window.location.pathname; // e.g. "/dashboard/send", "/docs/contract"
+      const route = path.replace(/^\//, ''); // strip leading slash
       
-      // Ignore Google OAuth callback hashes
-      if (hash.includes('id_token=')) return;
-      
-      const route = hash.replace(/^#\/?/, ''); // e.g. "dashboard/send", "docs/contract"
       if (route.startsWith('docs')) {
         setViewMode('docs');
         const parts = route.split('/');
@@ -351,32 +348,36 @@ function App() {
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
     
     // Run on initial mount
-    const initialHash = window.location.hash;
-    if (initialHash && !initialHash.includes('id_token=')) {
+    const initialPath = window.location.pathname;
+    if (initialPath && initialPath !== '/') {
       // Small timeout to allow activeAddress state to load from storage
-      setTimeout(handleHashChange, 50);
+      setTimeout(handlePopState, 50);
     }
 
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
-  // Sync state modifications back to the hash route
+  // Sync state modifications back to the URL pathname route
   useEffect(() => {
-    // Skip if we are currently parsing the OAuth redirect token
+    // Skip if we are currently redirecting from Google OAuth
     if (window.location.hash.includes('id_token=')) return;
 
+    let targetPath = '/';
     if (viewMode === 'docs') {
-      window.location.hash = `/docs/${activeDocId}`;
+      targetPath = `/docs/${activeDocId}`;
     } else if (activeAddress) {
       const tabSlug = activeTab === 'send' ? 'send' : activeTab === 'manage' ? 'escrows' : 'history';
-      window.location.hash = `/dashboard/${tabSlug}`;
-    } else {
-      window.location.hash = '/';
+      targetPath = `/dashboard/${tabSlug}`;
+    }
+
+    // Only push to history if it actually changes the path to avoid loops
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
     }
   }, [viewMode, activeTab, activeDocId, activeAddress]);
 
