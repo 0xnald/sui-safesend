@@ -583,12 +583,12 @@ function App() {
       }, 15000);
       return () => clearInterval(interval);
     }
-  }, [activeAddress, connectedEmail]);
+  }, [activeAddress, connectedEmail, network]);
 
-  // Trigger gas faucet if user has a pending received escrow and 0 SUI balance
+  // Trigger gas faucet if user has a pending received escrow and 0 SUI balance (only on testnet)
   useEffect(() => {
     const triggerFaucetIfEligible = async () => {
-      if (zkLoginCredentials && parseFloat(activeBalance) < 0.005 && receivedPayments.length > 0) {
+      if (network === 'testnet' && zkLoginCredentials && parseFloat(activeBalance) < 0.005 && receivedPayments.length > 0) {
         const hasPendingReceived = receivedPayments.some(p => !p.claimed);
         if (hasPendingReceived) {
           try {
