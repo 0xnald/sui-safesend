@@ -1019,7 +1019,11 @@ function App() {
             {activeAddress && (
               <select 
                 value={network}
-                onChange={(e) => selectNetwork(e.target.value)}
+                onChange={(e) => {
+                  const selected = e.target.value;
+                  selectNetwork(selected);
+                  localStorage.setItem('safesend_network', selected);
+                }}
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
                   color: 'var(--text-white)',

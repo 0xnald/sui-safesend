@@ -31,7 +31,15 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networkConfig} defaultNetwork="mainnet">
+      <SuiClientProvider 
+        networks={networkConfig} 
+        defaultNetwork={
+          (() => {
+            const saved = localStorage.getItem('safesend_network');
+            return (saved === 'testnet' || saved === 'mainnet') ? saved : 'mainnet';
+          })()
+        }
+      >
         <WalletProvider autoConnect>
           <App />
         </WalletProvider>
