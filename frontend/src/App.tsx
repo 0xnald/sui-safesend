@@ -198,17 +198,13 @@ function App() {
 
   // Network Selector Context
   const { network, selectNetwork } = useSuiClientContext();
-  const [mainnetPackageId, setMainnetPackageId] = useState<string>(() => localStorage.getItem('safesend_mainnet_package') || '0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c');
-  const [mainnetTreasury, setMainnetTreasury] = useState<string>(() => localStorage.getItem('safesend_mainnet_treasury') || '0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79');
-  const [showConfigModal, setShowConfigModal] = useState(false);
-
   const CURRENT_PACKAGE_ID = network === 'mainnet' 
-    ? mainnetPackageId 
-    : "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
+    ? (import.meta.env.VITE_MAINNET_PACKAGE_ID || "0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c") 
+    : (import.meta.env.VITE_TESTNET_PACKAGE_ID || "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635");
 
   const CURRENT_TREASURY = network === 'mainnet'
-    ? mainnetTreasury
-    : "0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79";
+    ? (import.meta.env.VITE_MAINNET_TREASURY || "0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79")
+    : (import.meta.env.VITE_TESTNET_TREASURY || "0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79");
 
   // Active User session (Wallet or Google zkLogin)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
@@ -565,7 +561,7 @@ function App() {
     localStorage.removeItem('safesend_zklogin_creds');
   };
 
-  // Sync payments when user logins or switches tabs
+  // Sync payments when user logins, switches network, or switches tabs
   useEffect(() => {
     if (activeAddress) {
       loadPayments();
@@ -576,7 +572,7 @@ function App() {
       setHistoryPayments([]);
       setActiveBalance('0.0000');
     }
-  }, [activeAddress, connectedEmail]);
+  }, [activeAddress, connectedEmail, network]);
 
   // Periodic poll to show countdowns and fetch new items
   useEffect(() => {
@@ -1137,18 +1133,7 @@ function App() {
                       </div>
                     )}
 
-                    {network === 'mainnet' && (
-                      <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Mainnet Config</span>
-                        <button 
-                          onClick={() => { setShowConfigModal(true); setShowUserDropdown(false); }}
-                          className="btn-venmo-secondary"
-                          style={{ width: '100%', padding: '10px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                        >
-                          Configure Package ID
-                        </button>
-                      </div>
-                    )}
+
 
                     <button 
                       onClick={handleDisconnect} 
@@ -1450,25 +1435,7 @@ function App() {
               {/* Minimalist Dashboard content */}
               <div className="venmo-card dashboard-card">
                 
-                {/* Mainnet Setup Warning */}
-                {network === 'mainnet' && !mainnetPackageId && (
-                  <div className="venmo-card" style={{ borderLeft: '5px solid var(--red-error)', background: 'var(--red-light)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', boxSizing: 'border-box', marginBottom: '28px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <AlertCircle color="var(--red-error)" size={20} style={{ flexShrink: 0 }} />
-                      <span style={{ color: 'var(--text-dark)', fontWeight: 800, fontSize: '0.92rem' }}>Mainnet Contract Not Configured</span>
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, textAlign: 'left', lineHeight: 1.4 }}>
-                      To send reversible escrows on Mainnet, please publish the contract and specify the Package ID.
-                    </p>
-                    <button 
-                      onClick={() => setShowConfigModal(true)}
-                      className="btn-venmo-secondary"
-                      style={{ padding: '8px 16px', fontSize: '0.8rem', alignSelf: 'flex-start' }}
-                    >
-                      Configure Package ID
-                    </button>
-                  </div>
-                )}
+
                 
                 {/* Dashboard Header Title */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
@@ -1680,9 +1647,9 @@ function App() {
                         type="submit" 
                         className="btn-venmo-primary" 
                         style={{ padding: '16px', fontSize: '1rem', marginTop: '8px' }} 
-                        disabled={isSending || (network === 'mainnet' && !mainnetPackageId)}
+                        disabled={isSending}
                       >
-                        {isSending ? "Creating Escrow Vault..." : (network === 'mainnet' && !mainnetPackageId ? "Configure Contract to Send" : "Send Reversible SUI")}
+                        {isSending ? "Creating Escrow Vault..." : "Send Reversible SUI"}
                       </button>
                     </form>
 
@@ -1976,72 +1943,7 @@ function App() {
           </div>
         </div>
       )}
-      {/* Mainnet Configuration Modal */}
-      {showConfigModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(4, 8, 21, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-          <div className="venmo-card" style={{ maxWidth: '440px', width: '90%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--border-light)' }}>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-dark)', fontWeight: 800 }}>Configure Mainnet Contracts</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4, textAlign: 'left' }}>
-              To use SafeSend on Mainnet, publish the contract using the Sui CLI, then enter your deployed Package ID and Treasury address below.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
-              <div className="venmo-input-wrapper">
-                <label className="venmo-input-label">Mainnet Package ID</label>
-                <input 
-                  type="text" 
-                  className="venmo-input" 
-                  placeholder="0x..." 
-                  value={mainnetPackageId}
-                  onChange={(e) => setMainnetPackageId(e.target.value)}
-                />
-              </div>
-              <div className="venmo-input-wrapper">
-                <label className="venmo-input-label">Mainnet Treasury Wallet</label>
-                <input 
-                  type="text" 
-                  className="venmo-input" 
-                  placeholder="0x..." 
-                  value={mainnetTreasury}
-                  onChange={(e) => setMainnetTreasury(e.target.value)}
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <button 
-                onClick={() => {
-                  localStorage.setItem('safesend_mainnet_package', mainnetPackageId);
-                  localStorage.setItem('safesend_mainnet_treasury', mainnetTreasury);
-                  setShowConfigModal(false);
-                }}
-                className="btn-venmo-primary"
-                style={{ flex: 1, padding: '12px' }}
-              >
-                Save
-              </button>
-              <button 
-                onClick={() => {
-                  setMainnetPackageId('0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c');
-                  setMainnetTreasury('0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79');
-                  localStorage.removeItem('safesend_mainnet_package');
-                  localStorage.removeItem('safesend_mainnet_treasury');
-                  setShowConfigModal(false);
-                }}
-                className="btn-venmo-secondary"
-                style={{ flex: 1, padding: '12px' }}
-              >
-                Reset Default
-              </button>
-              <button 
-                onClick={() => setShowConfigModal(false)}
-                className="btn-venmo-secondary"
-                style={{ flex: 1, padding: '12px' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
     </div>
   );
