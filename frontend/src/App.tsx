@@ -963,7 +963,7 @@ function App() {
             <span className="footer-col-title">Protocol</span>
             <a className="footer-link" href="https://github.com/0xnald/sui-safesend/tree/main/safesend" target="_blank" rel="noopener noreferrer">Smart Contract</a>
             <a className="footer-link" href="https://github.com/0xnald/sui-safesend" target="_blank" rel="noopener noreferrer">Keeper Bot</a>
-            <a className="footer-link" href="https://testnet.suivision.xyz" target="_blank" rel="noopener noreferrer">Explorer</a>
+            <a className="footer-link" href={network === 'mainnet' ? "https://suivision.xyz" : "https://testnet.suivision.xyz"} target="_blank" rel="noopener noreferrer">Explorer</a>
             <a className="footer-link" href="https://faucet.sui.io/" target="_blank" rel="noopener noreferrer">Sui Faucet</a>
           </div>
           <div className="footer-col">
@@ -1019,26 +1019,28 @@ function App() {
           </button>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {/* Network Selector Dropdown */}
-            <select 
-              value={network}
-              onChange={(e) => selectNetwork(e.target.value)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                color: 'var(--text-white)',
-                border: '1px solid var(--border-navy)',
-                padding: '8px 12px',
-                borderRadius: '9999px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                outline: 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              <option value="testnet" style={{ background: '#0b1329', color: '#fff' }}>Testnet</option>
-              <option value="mainnet" style={{ background: '#0b1329', color: '#fff' }}>Mainnet</option>
-            </select>
+            {/* Network Selector Dropdown - Only visible when connected/logged in */}
+            {activeAddress && (
+              <select 
+                value={network}
+                onChange={(e) => selectNetwork(e.target.value)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: 'var(--text-white)',
+                  border: '1px solid var(--border-navy)',
+                  padding: '8px 12px',
+                  borderRadius: '9999px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <option value="mainnet" style={{ background: '#0b1329', color: '#fff' }}>Mainnet</option>
+                <option value="testnet" style={{ background: '#0b1329', color: '#fff' }}>Testnet</option>
+              </select>
+            )}
 
             {!activeAddress ? (
               <button 
