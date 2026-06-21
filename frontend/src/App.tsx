@@ -4,7 +4,8 @@ import {
   useSignAndExecuteTransaction, 
   useSuiClient,
   useDisconnectWallet,
-  ConnectModal
+  ConnectModal,
+  useSuiClientContext
 } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
@@ -30,8 +31,6 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-// Deployed Package Configuration on Sui Testnet
-const PACKAGE_ID = "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
 const MODULE_NAME = "safesend";
 
 interface PaymentItem {
@@ -196,6 +195,20 @@ function App() {
   const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
   const { mutate: disconnectWallet } = useDisconnectWallet();
+
+  // Network Selector Context
+  const { network, selectNetwork } = useSuiClientContext();
+  const [mainnetPackageId, setMainnetPackageId] = useState<string>(() => localStorage.getItem('safesend_mainnet_package') || '');
+  const [mainnetTreasury, setMainnetTreasury] = useState<string>(() => localStorage.getItem('safesend_mainnet_treasury') || '');
+  const [showConfigModal, setShowConfigModal] = useState(false);
+
+  const CURRENT_PACKAGE_ID = network === 'mainnet' 
+    ? mainnetPackageId 
+    : "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
+
+  const CURRENT_TREASURY = network === 'mainnet'
+    ? mainnetTreasury
+    : "0x804450ab336a932a58bc75dc7968b1903b685995a0e14c75babc3e4c7c84ff79";
 
   // Active User session (Wallet or Google zkLogin)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
@@ -618,21 +631,21 @@ function App() {
     try {
       // A. Query all created payments
       const createdEvents = await suiClient.queryEvents({
-        query: { MoveEventType: `${PACKAGE_ID}::${MODULE_NAME}::PaymentCreated` },
+        query: { MoveEventType: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::PaymentCreated` },
         limit: 50,
         order: 'descending'
       });
 
       // B. Query all claimed/settled events
       const claimedEvents = await suiClient.queryEvents({
-        query: { MoveEventType: `${PACKAGE_ID}::${MODULE_NAME}::PaymentClaimed` },
+        query: { MoveEventType: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::PaymentClaimed` },
         limit: 50
       });
       const claimedIds = new Set(claimedEvents.data.map((e: any) => e.parsedJson.payment_id));
 
       // C. Query all cancelled events
       const cancelledEvents = await suiClient.queryEvents({
-        query: { MoveEventType: `${PACKAGE_ID}::${MODULE_NAME}::PaymentCancelled` },
+        query: { MoveEventType: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::PaymentCancelled` },
         limit: 50
       });
       const cancelledIds = new Set(cancelledEvents.data.map((e: any) => e.parsedJson.payment_id));
@@ -768,7 +781,7 @@ function App() {
       const [coinToDeposit] = tx.splitCoins(tx.gas, [amountInMist]);
 
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE_NAME}::create_payment`,
+        target: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::create_payment`,
         typeArguments: ['0x2::sui::SUI'],
         arguments: [
           tx.pure.address(finalRecipient),
@@ -798,7 +811,7 @@ function App() {
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: 'sui:testnet',
+            chain: network === 'mainnet' ? 'sui:mainnet' : 'sui:testnet',
           },
           {
             onSuccess: (result) => {
@@ -839,7 +852,7 @@ function App() {
     try {
       const tx = new Transaction();
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE_NAME}::claim_payment`,
+        target: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::claim_payment`,
         typeArguments: ['0x2::sui::SUI'],
         arguments: [
           tx.object(paymentId),
@@ -855,7 +868,7 @@ function App() {
       } else {
         signAndExecuteTransaction({
           transaction: tx,
-          chain: 'sui:testnet'
+          chain: network === 'mainnet' ? 'sui:mainnet' : 'sui:testnet'
         }, {
           onSuccess: () => {
             alert("Payment claimed successfully!");
@@ -881,7 +894,7 @@ function App() {
     try {
       const tx = new Transaction();
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE_NAME}::cancel_payment`,
+        target: `${CURRENT_PACKAGE_ID}::${MODULE_NAME}::cancel_payment`,
         typeArguments: ['0x2::sui::SUI'],
         arguments: [
           tx.object(paymentId),
@@ -897,7 +910,7 @@ function App() {
       } else {
         signAndExecuteTransaction({
           transaction: tx,
-          chain: 'sui:testnet'
+          chain: network === 'mainnet' ? 'sui:mainnet' : 'sui:testnet'
         }, {
           onSuccess: () => {
             alert("Payment recalled and refunded successfully!");
@@ -1006,6 +1019,27 @@ function App() {
           </button>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {/* Network Selector Dropdown */}
+            <select 
+              value={network}
+              onChange={(e) => selectNetwork(e.target.value)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: 'var(--text-white)',
+                border: '1px solid var(--border-navy)',
+                padding: '8px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              <option value="testnet" style={{ background: '#0b1329', color: '#fff' }}>Testnet</option>
+              <option value="mainnet" style={{ background: '#0b1329', color: '#fff' }}>Mainnet</option>
+            </select>
+
             {!activeAddress ? (
               <button 
                 className="btn-venmo-primary" 
@@ -1087,17 +1121,32 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Need SUI Gas?</span>
-                      <a 
-                        href="https://faucet.sui.io/" 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        style={{ fontSize: '0.82rem', color: 'var(--blue-sky)', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        Claim Sui Faucet ↗
-                      </a>
-                    </div>
+                    {network === 'testnet' && (
+                      <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Need SUI Gas?</span>
+                        <a 
+                          href="https://faucet.sui.io/" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ fontSize: '0.82rem', color: 'var(--blue-sky)', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          Claim Sui Faucet ↗
+                        </a>
+                      </div>
+                    )}
+
+                    {network === 'mainnet' && (
+                      <div style={{ borderTop: '1px solid var(--border-navy)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Mainnet Config</span>
+                        <button 
+                          onClick={() => { setShowConfigModal(true); setShowUserDropdown(false); }}
+                          className="btn-venmo-secondary"
+                          style={{ width: '100%', padding: '10px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        >
+                          Configure Package ID
+                        </button>
+                      </div>
+                    )}
 
                     <button 
                       onClick={handleDisconnect} 
@@ -1188,6 +1237,20 @@ function App() {
                   <li style={{ marginBottom: '8px' }}><strong>Background Keeper Bot</strong>: Bots auto-release finalized payments, making execution seamless and gasless for the recipient.</li>
                   <li style={{ marginBottom: '8px' }}><strong>Gas Faucet Helper</strong>: Auto-funds new zkLogin addresses with gas SUI if they have pending escrows, ensuring zero onboarding friction.</li>
                 </ul>
+
+                <h2 className="gitbook-subtitle">On-Chain Deployment Details</h2>
+                <div className="gitbook-callout gitbook-callout-success" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', marginTop: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldCheck size={20} style={{ flexShrink: 0 }} />
+                    <strong>Sui Contract Deployment Status</strong>
+                  </div>
+                  <div style={{ fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                    <div><strong>Active Network:</strong> {network === 'mainnet' ? 'Sui Mainnet' : 'Sui Testnet'}</div>
+                    <div><strong>Package ID:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>{CURRENT_PACKAGE_ID || "(Not Configured)"}</code></div>
+                    <div><strong>Treasury Wallet:</strong> <code style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>{CURRENT_TREASURY || "(Not Configured)"}</code></div>
+                    <div><strong>Platform Fee:</strong> 0.1% on successful claims and automatic releases</div>
+                  </div>
+                </div>
               </>
             )}
 
@@ -1384,6 +1447,26 @@ function App() {
 
               {/* Minimalist Dashboard content */}
               <div className="venmo-card dashboard-card">
+                
+                {/* Mainnet Setup Warning */}
+                {network === 'mainnet' && !mainnetPackageId && (
+                  <div className="venmo-card" style={{ borderLeft: '5px solid var(--red-error)', background: 'var(--red-light)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', boxSizing: 'border-box', marginBottom: '28px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle color="var(--red-error)" size={20} style={{ flexShrink: 0 }} />
+                      <span style={{ color: 'var(--text-dark)', fontWeight: 800, fontSize: '0.92rem' }}>Mainnet Contract Not Configured</span>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, textAlign: 'left', lineHeight: 1.4 }}>
+                      To send reversible escrows on Mainnet, please publish the contract and specify the Package ID.
+                    </p>
+                    <button 
+                      onClick={() => setShowConfigModal(true)}
+                      className="btn-venmo-secondary"
+                      style={{ padding: '8px 16px', fontSize: '0.8rem', alignSelf: 'flex-start' }}
+                    >
+                      Configure Package ID
+                    </button>
+                  </div>
+                )}
                 
                 {/* Dashboard Header Title */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
@@ -1591,8 +1674,13 @@ function App() {
                         />
                       </div>
 
-                      <button type="submit" className="btn-venmo-primary" style={{ padding: '16px', fontSize: '1rem', marginTop: '8px' }} disabled={isSending}>
-                        {isSending ? "Creating Escrow Vault..." : "Send Reversible SUI"}
+                      <button 
+                        type="submit" 
+                        className="btn-venmo-primary" 
+                        style={{ padding: '16px', fontSize: '1rem', marginTop: '8px' }} 
+                        disabled={isSending || (network === 'mainnet' && !mainnetPackageId)}
+                      >
+                        {isSending ? "Creating Escrow Vault..." : (network === 'mainnet' && !mainnetPackageId ? "Configure Contract to Send" : "Send Reversible SUI")}
                       </button>
                     </form>
 
@@ -1882,6 +1970,59 @@ function App() {
                 </div>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Mainnet Configuration Modal */}
+      {showConfigModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(4, 8, 21, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div className="venmo-card" style={{ maxWidth: '440px', width: '90%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--border-light)' }}>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-dark)', fontWeight: 800 }}>Configure Mainnet Contracts</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4, textAlign: 'left' }}>
+              To use SafeSend on Mainnet, publish the contract using the Sui CLI, then enter your deployed Package ID and Treasury address below.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
+              <div className="venmo-input-wrapper">
+                <label className="venmo-input-label">Mainnet Package ID</label>
+                <input 
+                  type="text" 
+                  className="venmo-input" 
+                  placeholder="0x..." 
+                  value={mainnetPackageId}
+                  onChange={(e) => setMainnetPackageId(e.target.value)}
+                />
+              </div>
+              <div className="venmo-input-wrapper">
+                <label className="venmo-input-label">Mainnet Treasury Wallet</label>
+                <input 
+                  type="text" 
+                  className="venmo-input" 
+                  placeholder="0x..." 
+                  value={mainnetTreasury}
+                  onChange={(e) => setMainnetTreasury(e.target.value)}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button 
+                onClick={() => {
+                  localStorage.setItem('safesend_mainnet_package', mainnetPackageId);
+                  localStorage.setItem('safesend_mainnet_treasury', mainnetTreasury);
+                  setShowConfigModal(false);
+                }}
+                className="btn-venmo-primary"
+                style={{ flex: 1, padding: '12px' }}
+              >
+                Save Configuration
+              </button>
+              <button 
+                onClick={() => setShowConfigModal(false)}
+                className="btn-venmo-secondary"
+                style={{ flex: 1, padding: '12px' }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
