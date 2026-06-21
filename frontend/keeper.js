@@ -4,12 +4,19 @@ import { Transaction } from '@mysten/sui/transactions';
 import fs from 'fs';
 import http from 'http';
 
-const PACKAGE_ID = "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635";
+const NETWORK = process.env.SUI_NETWORK || 'mainnet';
+const PACKAGE_ID = process.env.SUI_PACKAGE_ID || (
+  NETWORK === 'mainnet'
+    ? "0xa1267a62b0accbb5347d857b2524f4f0429a985a9a09d10608cfff2ec39f9f4c"
+    : "0x61d20bc284636d32f29c006a4d4795140aeda77f8c345f6376047dfddc032635"
+);
 const MODULE_NAME = "safesend";
 
-// 1. Initialize Sui Client pointing to Testnet
+console.log(`[SafeSend Keeper] Initializing on network: ${NETWORK} with package: ${PACKAGE_ID}`);
+
+// 1. Initialize Sui Client pointing to selected network
 const suiClient = new SuiJsonRpcClient({
-  transport: new JsonRpcHTTPTransport({ url: getJsonRpcFullnodeUrl('testnet') }),
+  transport: new JsonRpcHTTPTransport({ url: getJsonRpcFullnodeUrl(NETWORK) }),
 });
 
 // 2. Load the Keeper Keypair from env or local keystore
@@ -135,6 +142,13 @@ const server = http.createServer(async (req, res) => {
         }
 
         console.log(`[SafeSend Keeper] Faucet request received for address: ${address}, email: ${email}`);
+
+        // Only allow faucet on Testnet!
+        if (NETWORK !== 'testnet') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Gas faucet is only available on Testnet.' }));
+          return;
+        }
 
         // A. Verify that there is at least one active escrow for this email
         const createdEvents = await suiClient.queryEvents({
