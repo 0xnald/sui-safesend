@@ -323,6 +323,63 @@ function App() {
     }
   }, []);
 
+  // Synchronize React navigation state with URL hash route
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      
+      // Ignore Google OAuth callback hashes
+      if (hash.includes('id_token=')) return;
+      
+      const route = hash.replace(/^#\/?/, ''); // e.g. "dashboard/send", "docs/contract"
+      if (route.startsWith('docs')) {
+        setViewMode('docs');
+        const parts = route.split('/');
+        const docId = parts[1] || 'intro';
+        if (['intro', 'contract', 'zklogin', 'keeper', 'integration'].includes(docId)) {
+          setActiveDocId(docId);
+        }
+      } else if (route.startsWith('dashboard')) {
+        setViewMode('app');
+        const parts = route.split('/');
+        const tabId = parts[1];
+        if (tabId === 'send') setActiveTab('send');
+        else if (tabId === 'escrows') setActiveTab('manage');
+        else if (tabId === 'history') setActiveTab('history');
+      } else {
+        setViewMode('app');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Run on initial mount
+    const initialHash = window.location.hash;
+    if (initialHash && !initialHash.includes('id_token=')) {
+      // Small timeout to allow activeAddress state to load from storage
+      setTimeout(handleHashChange, 50);
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
+
+  // Sync state modifications back to the hash route
+  useEffect(() => {
+    // Skip if we are currently parsing the OAuth redirect token
+    if (window.location.hash.includes('id_token=')) return;
+
+    if (viewMode === 'docs') {
+      window.location.hash = `/docs/${activeDocId}`;
+    } else if (activeAddress) {
+      const tabSlug = activeTab === 'send' ? 'send' : activeTab === 'manage' ? 'escrows' : 'history';
+      window.location.hash = `/dashboard/${tabSlug}`;
+    } else {
+      window.location.hash = '/';
+    }
+  }, [viewMode, activeTab, activeDocId, activeAddress]);
+
   const handleGoogleRedirect = async (idToken: string) => {
     setZkLoginLoading(true);
     setZkLoginStatus('Decoding JWT token...');
